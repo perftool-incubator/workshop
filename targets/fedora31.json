@@ -1,0 +1,12 @@
+{
+    "name": "Fedora 31",
+    "label": "fedora31",
+    "source": {
+	"image": "docker.io/library/fedora",
+	"tag": "31"
+    },
+    "packages": {
+	"type": "rpm",
+	"manager": "dnf"
+    }
+}
