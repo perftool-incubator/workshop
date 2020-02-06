@@ -145,7 +145,7 @@ if ($rc != 0) {
 }
 
 # update the container's existing content
-print "Updating the container...";
+print "Updating the temporary container...";
 my $update_cmd = "";
 my $clean_cmd = "";
 if ($target_json->{'packages'}{'manager'} eq "dnf") {
@@ -159,7 +159,7 @@ $buildah_output = `buildah run $tmp_container -- $update_cmd 2>&1`;
 $rc = $? >> 8;
 if ($rc != 0) {
     print "failed\n";
-    print STDERR "ERROR: Updating the container '$tmp_container' failed!\n";
+    print STDERR "ERROR: Updating the temporary container '$tmp_container' failed!\n";
     print STDERR "       output: $buildah_output\n";
     exit 7;
 } else {
@@ -167,7 +167,7 @@ if ($rc != 0) {
     $rc = $? >> 8;
     if ($rc != 0) {
 	print "failed\n";
-	print STDERR "ERROR: Updating the container '$tmp_container' failed because it could not clean up after itself!\n";
+	print STDERR "ERROR: Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n";
 	print STDERR "       output: $buildah_output\n";
 	exit 12;
     } else {
