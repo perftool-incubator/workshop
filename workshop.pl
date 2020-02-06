@@ -97,9 +97,9 @@ if ($rc == 0) {
 my $tmp_container = $me . "_" . $target_json->{'label'};
 
 # make sure there isn't an old container hanging around
-$buildah_output = `buildah containers --filter $tmp_container --json 2>&1`;
+$buildah_output = `buildah containers --filter name=$tmp_container --json 2>&1`;
 $rc = $? >> 8;
-if ($rc == 0) {
+if ($buildah_output !~ /null/) {
     # need to clean up an old container
     print "Cleaning up old container...";
     $buildah_output = `buildah rm $tmp_container 2>&1`;
