@@ -31,10 +31,13 @@ sub arg_handler {
 	}
 
 	push(@{$args{'reqs'}}, $opt_value);
+    } elsif ($opt_name eq "skip-update") {
+	$args{'skip-update'} = 1;
     }
 }
 
 GetOptions("requirements=s" => \&arg_handler,
+	   "skip-update" => \&arg_handler,
 	   "target=s" => \&arg_handler)
     or die("Error in command line arguments");
 
@@ -146,35 +149,39 @@ if ($rc != 0) {
     print "succeeded\n";
 }
 
-# update the container's existing content
-print "Updating the temporary container...";
-my $update_cmd = "";
-my $clean_cmd = "";
-if ($target_json->{'packages'}{'manager'} eq "dnf") {
-    $update_cmd = "dnf update --assumeyes";
-    $clean_cmd = "dnf clean all";
-} elsif ($target_json->{'packages'}{'manager'} eq "yum") {
-    $update_cmd = "yum update --assumeyes";
-    $clean_cmd = "yum clean all";
-}
-$buildah_output = `buildah run $tmp_container -- $update_cmd 2>&1`;
-$rc = $? >> 8;
-if ($rc != 0) {
-    print "failed\n";
-    print STDERR "ERROR: Updating the temporary container '$tmp_container' failed!\n";
-    print STDERR "       output: $buildah_output\n";
-    exit 7;
-} else {
-    $buildah_output = `buildah run $tmp_container -- $clean_cmd 2>&1`;
+if (!exists($args{'skip-update'})) {
+    # update the container's existing content
+    print "Updating the temporary container...";
+    my $update_cmd = "";
+    my $clean_cmd = "";
+    if ($target_json->{'packages'}{'manager'} eq "dnf") {
+	$update_cmd = "dnf update --assumeyes";
+	$clean_cmd = "dnf clean all";
+    } elsif ($target_json->{'packages'}{'manager'} eq "yum") {
+	$update_cmd = "yum update --assumeyes";
+	$clean_cmd = "yum clean all";
+    }
+    $buildah_output = `buildah run $tmp_container -- $update_cmd 2>&1`;
     $rc = $? >> 8;
     if ($rc != 0) {
 	print "failed\n";
-	print STDERR "ERROR: Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n";
+	print STDERR "ERROR: Updating the temporary container '$tmp_container' failed!\n";
 	print STDERR "       output: $buildah_output\n";
-	exit 12;
+	exit 7;
     } else {
-	print "succeeded\n";
+	$buildah_output = `buildah run $tmp_container -- $clean_cmd 2>&1`;
+	$rc = $? >> 8;
+	if ($rc != 0) {
+	    print "failed\n";
+	    print STDERR "ERROR: Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n";
+	    print STDERR "       output: $buildah_output\n";
+	    exit 12;
+	} else {
+	    print "succeeded\n";
+	}
     }
+} else {
+    print "Skipping update due to --skip-update\n";
 }
 
 # mount the container image
