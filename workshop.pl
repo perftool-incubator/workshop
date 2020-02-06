@@ -64,6 +64,8 @@ if (open(my $target_fh, "<", $args{'target'})) {
 my $buildah_output;
 my $rc;
 
+my $container_mount_point;
+
 # acquire the target source
 $buildah_output = `buildah images --json $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'} 2>&1`;
 $rc = $? >> 8;
@@ -175,9 +177,79 @@ if ($rc != 0) {
     }
 }
 
-#mount_point=$(buildah mount workshop_$label)
-# do crazy stuff here
-#buildah unmount workshop_$label
+# mount the container image
+print "Mounting the temporary container's fileystem...";
+$buildah_output = `buildah mount $tmp_container 2>&1`;
+$rc = $? >> 8;
+if ($rc != 0) {
+    print "failed\n";
+    print STDERR "ERROR: Failed to mount the temporary container's filesystem!\n";
+    print STDERR "       output: $buildah_output\n";
+    exit 13;
+} else {
+    print "succeeded\n";
+    chomp($buildah_output);
+    $container_mount_point = $buildah_output;
+}
+
+# what follows is a complicated mess of code to chroot into the
+# temporary container's filesystem.  Once their all kinds of stuff can
+# be done to install packages and make other tweaks to the container
+# if necessary.
+
+# capture the current path/pwd and a reference to '/'
+if (opendir(NORMAL_ROOT, "/")) {
+    my $pwd = `pwd`;
+    chomp($pwd);
+
+    # jump into the container image
+    if (chroot($container_mount_point)) {
+	if (chdir("/root")) {
+	    print "I'm in the container filesystem's /root!\n";
+	    print `ls` . "\n";
+
+	    # break out of the chroot and return to the old path/pwd
+	    if (chdir(*NORMAL_ROOT)) {
+		if (chroot(".")) {
+		    if (!chdir($pwd)) {
+			print STDERR "ERROR: Could not chdir back to the original path/pwd!\n";
+			exit 20;
+		    }
+		} else {
+		    print STDERR "ERROR: Could not chroot out of the chroot!\n";
+		    exit 19;
+		}
+	    } else {
+		print STDERR "ERROR: Could not chdir to escape the chroot!\n";
+		exit 18;
+	    }
+	} else {
+	    print STDERR "ERROR: Could not chdir to temporary container mount point [$container_mount_point]!\n";
+	    exit 17;
+	}
+    } else {
+	print STDERR "ERROR: Could not chroot to temporary container mount point [$container_mount_point]!\n";
+	exit 16;
+    }
+
+    closedir(NORMAL_ROOT);
+} else {
+    print STDERR "ERROR: Could not get directory reference to '/'!\n";
+    exit 15;
+}
+
+# unmount the container image
+print "Unmounting the temporary container's filesystem...";
+$buildah_output = `buildah unmount $tmp_container 2>&1`;
+$rc = $? >> 8;
+if ($rc != 0) {
+    print "failed\n";
+    print STDERR "ERROR: Failed to unmount the temporary container's filesystem [$container_mount_point]!\n";
+    print STDERR "       output: $buildah_output\n";
+    exit 14;
+} else {
+    print "succeeded\n";
+}
 
 # create the new container image
 print "Creating new container image...";
