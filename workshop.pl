@@ -64,6 +64,68 @@ if (open(my $target_fh, "<", $args{'target'})) {
     exit 2;
 }
 
+my @all_requirements;
+my %active_requirements;
+
+print "Processing requested requirements...";
+
+foreach my $req (@{$args{'reqs'}}) {
+    if (open(my $req_fh, "<", $req)) {
+	my $file_contents;
+	while(<$req_fh>) {
+	    $file_contents .= $_;
+	}
+
+	my $tmp_req = { 'name' => $req,
+			'json' => decode_json($file_contents) };
+
+	push(@all_requirements, $tmp_req);
+
+	close($req_fh);
+    } else {
+	print "failed\n";
+	print STDERR "ERROR: Failed to load requirement file '$req'!\n";
+	exit 21;
+    }
+}
+
+#print Dumper \@all_requirements;
+
+$active_requirements{'hash'} = ();
+$active_requirements{'array'} = [];
+
+foreach my $tmp_req (@all_requirements) {
+    my $target_label;
+
+    if (exists($tmp_req->{'json'}{'targets'}{$target_json->{'label'}})) {
+	$target_label = $target_json->{'label'};
+    } elsif (exists($tmp_req->{'json'}{'targets'}{'default'})) {
+	$target_label = 'default';
+    } else {
+	print "failed\n";
+	print STDERR "ERROR: Could not find appropriate target match in requirements '$tmp_req->{'name'}' for '$target_json->{'label'}'!\n";
+	exit 22;
+    }
+
+    for my $target_package (@{$tmp_req->{'json'}{'targets'}{$target_label}{'packages'}}) {
+	if (exists($active_requirements{'hash'}{$target_package})) {
+	    print "failed\n";
+	    print STDERR "ERROR: There is a target package conflict between '$tmp_req->{'name'}' and '$active_requirements{'hash'}{$target_package}{'requirement_source'}' for '$target_package'!\n";
+	    exit 23;
+	}
+
+	$active_requirements{'hash'}{$target_package} = { 'requirement_source' => $tmp_req->{'name'} };
+
+	push(@{$active_requirements{'array'}}, { 'label' => $target_package,
+						 'json' => $tmp_req->{'json'}{'packages'}{$target_package} });
+    }
+}
+
+# requirements processing end
+print "succeeded\n";
+
+#print Dumper \%active_requirements;
+
 my $buildah_output;
 my $rc;
 
