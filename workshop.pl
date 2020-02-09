@@ -16,6 +16,10 @@ $args{'log-level'} = 'info';
 sub logger {
     my ($log_level, $log_msg) = @_;
 
+    if (!defined($log_msg)) {
+	$log_msg = 'log_msg not defined';
+    }
+
     my $log_it = 0;
     my $prefix = "";
 
@@ -47,11 +51,12 @@ sub logger {
 	$add_newline = 1;
     }
 
-    my @lines = split(/\n/, $log_msg);
-
-    if ($log_level eq 'error') {
-	select(STDERR);
+    if ($log_msg eq "") {
+	print $prefix;
+	return;
     }
+
+    my @lines = split(/\n/, $log_msg);
 
     my $line_idx = 0;
     for ($line_idx=0; $line_idx<(scalar(@lines) - 1); $line_idx++) {
@@ -63,11 +68,6 @@ sub logger {
     } else {
 	print $prefix . $lines[$line_idx];
     }
-
-    if ($log_level eq 'error') {
-	select(STDOUT);
-    }
-
 }
 
 sub arg_handler {
