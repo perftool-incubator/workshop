@@ -5,8 +5,14 @@
 	"image": "docker.io/library/fedora",
 	"tag": "31"
     },
-    "packages": {
+    "install": {
 	"type": "rpm",
-	"manager": "dnf"
+	"manager": "dnf",
+	"packages": [
+	    "python36"
+	],
+	"groups": [
+	    "\"Development Tools\""
+	]
     }
 }
