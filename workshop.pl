@@ -139,6 +139,30 @@ my %active_requirements;
 
 logger('info', 'Processing requested requirements...');
 
+my $target_reqs = { 'name' => $args{'target'},
+		    'json' => { 'targets' => { $target_json->{'label'} => { 'packages' => [] } },
+				'packages' => {} } };
+
+if (exists($target_json->{'install'}{'packages'})) {
+    foreach my $pkg (@{$target_json->{'install'}{'packages'}}) {
+	push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
+
+	$target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
+						     'distro_info' => { 'pkg_name' => $pkg } };
+    }
+}
+
+if (exists($target_json->{'install'}{'groups'})) {
+    foreach my $pkg (@{$target_json->{'install'}{'groups'}}) {
+	push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
+
+	$target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
+						     'distro_info' => { 'group_name' => $pkg } };
+    }
+}
+
+push(@all_requirements, $target_reqs);
+
 foreach my $req (@{$args{'reqs'}}) {
     if (open(my $req_fh, "<", $req)) {
 	my $file_contents;
@@ -180,15 +204,25 @@ foreach my $tmp_req (@all_requirements) {
 
     for my $target_package (@{$tmp_req->{'json'}{'targets'}{$target_label}{'packages'}}) {
 	if (exists($active_requirements{'hash'}{$target_package})) {
-	    logger('info', "failed\n");
-	    logger('error', "There is a target package conflict between '$tmp_req->{'name'}' and '$active_requirements{'hash'}{$target_package}{'requirement_source'}' for '$target_package'!\n");
-	    exit 23;
+	    if (($tmp_req->{'json'}{'packages'}{'typ'} eq 'distro') &&
+		($active_requirements{'hash'}{$target_package}{'requirement_type'} eq 'distro')) {
+		push(@{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}, $tmp_req->{'name'});
+	    } else {
+		logger('info', "failed\n");
+		logger('error', "There is a target package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$target_package}{'type'}' and '" .
+		       join(',', @{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}) .
+		       "' with type '$active_requirements{'hash'}{$target_package}{'requirement_type'}' for '$target_package'!\n");
+		exit 23;
+	    }
+	} else {
+	    $active_requirements{'hash'}{$target_package} = { 'requirement_sources' => [
+								  $tmp_req->{'name'}
+								  ],
+							      'requirement_type' => $tmp_req->{'json'}{'packages'}{$target_package}{'type'} };
+
+	    push(@{$active_requirements{'array'}}, { 'label' => $target_package,
+						     'json' => $tmp_req->{'json'}{'packages'}{$target_package} });
 	}
-
-	$active_requirements{'hash'}{$target_package} = { 'requirement_source' => $tmp_req->{'name'} };
-
-	push(@{$active_requirements{'array'}}, { 'label' => $target_package,
-						 'json' => $tmp_req->{'json'}{'packages'}{$target_package} });
     }
 }
 
@@ -309,19 +343,21 @@ if ($rc != 0) {
     logger('verbose', $buildah_output);
 }
 
+my $update_cmd = "";
+my $clean_cmd = "";
+if ($target_json->{'install'}{'manager'} eq "dnf") {
+    $update_cmd = "dnf update --assumeyes";
+    $clean_cmd = "dnf clean all";
+} elsif ($target_json->{'install'}{'manager'} eq "yum") {
+    $update_cmd = "yum update --assumeyes";
+    $clean_cmd = "yum clean all";
+} else {
+    logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
+    exit 23;
+}
+
 if (!exists($args{'skip-update'})) {
     # update the container's existing content
-
-    my $update_cmd = "";
-    my $clean_cmd = "";
-    if ($target_json->{'packages'}{'manager'} eq "dnf") {
-	$update_cmd = "dnf update --assumeyes";
-	$clean_cmd = "dnf clean all";
-    } elsif ($target_json->{'packages'}{'manager'} eq "yum") {
-	$update_cmd = "yum update --assumeyes";
-	$clean_cmd = "yum clean all";
-    }
-
     logger('info', "Updating the temporary container...");
     $buildah_output = `buildah run $tmp_container -- $update_cmd 2>&1`;
     $rc = $? >> 8;
@@ -380,8 +416,145 @@ if (opendir(NORMAL_ROOT, "/")) {
     # jump into the container image
     if (chroot($container_mount_point)) {
 	if (chdir("/root")) {
-	    logger('info', "I'm in the container filesystem's /root!\n");
-	    logger('info', `ls` . "\n");
+	    logger('info', "Installing Requirements\n");
+
+	    my $distro_installs = 0;
+	    foreach my $req (@{$active_requirements{'array'}}) {
+		logger('info', "Processing $req->{'label'}...");
+
+		if ($req->{'json'}{'type'} eq 'distro') {
+		    $distro_installs = 1;
+
+		    logger('info', "performing distro package installation...");
+
+		    my $install_cmd = "";
+		    if ($target_json->{'install'}{'manager'} eq 'dnf') {
+			if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
+			    $install_cmd = "dnf install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
+			} elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
+			    $install_cmd = "dnf groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
+			}
+		    } elsif ($target_json->{'install'}{'manager'} eq 'yum') {
+			if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
+			    $install_cmd = "yum install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
+			} elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
+			    $install_cmd = "yum groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
+			}
+		    } else {
+			logger('info', "failed\n");
+			logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
+			exit 23;
+		    }
+
+		    my $install_output = `$install_cmd 2>&1`;
+		    $rc = $? >> 8;
+		    if ($rc == 0) {
+			logger('info', "succeeded\n");
+			logger('verbose', $install_output);
+		    } else {
+			logger('info', "failed [rc=$rc]\n");
+			logger('error', $install_output);
+			logger('error', "Failed to install package $req->{'json'}{'distro_info'}{'pkg_name'}\n");
+			exit 24;
+		    }
+
+		} elsif ($req->{'json'}{'type'} eq 'source') {
+		    logger('info', "building package from source for installation...");
+
+		    if (chdir('/root')) {
+			logger('info', 'downloading...');
+			my $curl_output = `curl --url $req->{'json'}{'source_info'}{'url'} --output $req->{'json'}{'source_info'}{'filename'} --location 2>&1`;
+			$rc = $? >> 8;
+			if ($rc == 0) {
+			    logger('info', 'getting directory...');
+			    my $get_dir_output = `$req->{'json'}{'source_info'}{'commands'}{'get_dir'} 2>&1`;
+			    $rc = $? >> 8;
+			    chomp($get_dir_output);
+			    if ($rc == 0) {
+				logger('info', 'unpacking...');
+				my $unpack_output = `$req->{'json'}{'source_info'}{'commands'}{'unpack'} 2>&1`;
+				$rc = $? >> 8;
+				if ($rc == 0) {
+				    if (chdir($get_dir_output)) {
+					logger('info', 'building...');
+					my $build_cmd_log = "";
+					foreach my $build_cmd (@{$req->{'json'}{'source_info'}{'commands'}{'build'}}) {
+					    my $build_cmd_output = `$build_cmd 2>&1`;
+					    $rc = $? >> 8;
+					    $build_cmd_log .= $build_cmd_output;
+					    if ($rc != 0) {
+						logger('info', "failed\n");
+						logger('error', $build_cmd_log);
+						logger('error', "Build failed on command '$build_cmd'!\n");
+						exit 30;
+					    }
+					}
+					logger('info', "succeeded\n");
+					logger('verbose', $build_cmd_log);
+				    } else {
+					logger('info', "failed\n");
+					logger('error', "Could not chdir to '$get_dir_output'!\n");
+					exit 29;
+				    }
+				} else {
+				    logger('info', "failed\n");
+				    logger('error', $unpack_output);
+				    logger('error', "Could not unpack source package!\n");
+				    exit 29;
+				}
+			    } else {
+				logger('info', "failed\n");
+				logger('error', $get_dir_output);
+				logger('error', "Could not get unpack directory!\n");
+				exit 28;
+			    }
+
+			} else {
+			    logger('info', "failed\n");
+			    logger('error', $curl_output);
+			    logger('error', "Could not download $req->{'json'}{'source_info'}{'url'}!\n");
+			    exit 27;
+			}
+		    } else {
+			logger('info', "failed\n");
+			logger('error', "Could not chdir to /root!\n");
+			exit 26;
+		    }
+		} elsif ($req->{'json'}{'type'} eq 'manual') {
+		    logger('info', "installing package via manually provided commands...");
+
+		    foreach my $cmd (@{$req->{'json'}{'manual_info'}{'commands'}}) {
+			logger('info', "Executing '$cmd'...");
+			my $cmd_output = `$cmd 2>&1`;
+
+			$rc = $? >> 8;
+			if ($rc == 0) {
+			    logger('info', "succeeded\n");
+			    logger('verbose', $cmd_output);
+			} else {
+			    logger('info', "failed [rc=$rc]\n");
+			    logger('error', $cmd_output);
+			    logger('error', "Failed to run command '$cmd'\n");
+			    exit 25;
+			}
+		    }
+		}
+	    }
+
+	    if ($distro_installs) {
+		logger('info', "Cleaning up after the performing distro package installations...");
+		my $clean_output = `$clean_cmd 2>&1`;
+		$rc = $? >> 8;
+		if ($rc != 0) {
+		    logger('info', "failed\n");
+		    logger('error', $clean_output);
+		    logger('error', "Cleaning up after distro package installation failed!\n");
+		    exit 26;
+		} else {
+		    logger('info', "succeeded\n");
+		    logger('verbose', $clean_output);
+		}
+	    }
 
 	    # break out of the chroot and return to the old path/pwd
 	    if (chdir(*NORMAL_ROOT)) {
