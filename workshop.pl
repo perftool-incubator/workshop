@@ -223,11 +223,13 @@ foreach my $tmp_req (@all_requirements) {
 
     for my $target_package (@{$tmp_req->{'json'}{'targets'}{$target_label}{'packages'}}) {
 	if (exists($active_requirements{'hash'}{$target_package})) {
-	    if (($tmp_req->{'json'}{'packages'}{'typ'} eq 'distro') &&
+	    if (($tmp_req->{'json'}{'packages'}{$target_package}{'type'} eq 'distro') &&
 		($active_requirements{'hash'}{$target_package}{'requirement_type'} eq 'distro')) {
 		push(@{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}, $tmp_req->{'name'});
 	    } else {
 		logger('info', "failed\n");
+		logger('debug', "All Requirements Hash:\n");
+		logger('debug', Dumper(\@all_requirements));
 		logger('error', "There is a target package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$target_package}{'type'}' and '" .
 		       join(',', @{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}) .
 		       "' with type '$active_requirements{'hash'}{$target_package}{'requirement_type'}' for '$target_package'!\n");
