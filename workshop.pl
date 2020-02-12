@@ -16,7 +16,7 @@ $args{'log-level'} = 'info';
 my $command_logger_fmt = "################################################################################\n" .
     "COMMAND:         %s\n" .
     "RETURN CODE:     %d\n" .
-    "COMMAND OUTPUT:\n%s\n" .
+    "COMMAND OUTPUT:\n\n%s\n" .
     "********************************************************************************\n";
 
 sub run_command {
