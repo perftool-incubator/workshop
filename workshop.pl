@@ -533,25 +533,25 @@ if (opendir(NORMAL_ROOT, "/")) {
 		} elsif ($req->{'json'}{'type'} eq 'manual') {
 		    logger('info', "installing package via manually provided commands...");
 
+		    my $install_cmd_log = "";
 		    foreach my $cmd (@{$req->{'json'}{'manual_info'}{'commands'}}) {
-			logger('info', "Executing '$cmd'...");
+			logger('info', "executing '$cmd'...");
 			($command, $command_output, $rc) = run_command("$cmd");
-
-			if ($rc == 0) {
-			    logger('info', "succeeded\n");
-			    command_logger('verbose', $command, $rc, $command_output);
-			} else {
+			$install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+			if ($rc != 0){
 			    logger('info', "failed [rc=$rc]\n");
-			    command_logger('error', $command, $rc, $command_output);
+			    logger('error', $install_cmd_log);
 			    logger('error', "Failed to run command '$cmd'\n");
 			    exit 25;
 			}
 		    }
+		    logger('info', "succeeded\n");
+		    logger('verbose', $install_cmd_log);
 		}
 	    }
 
 	    if ($distro_installs) {
-		logger('info', "Cleaning up after the performing distro package installations...");
+		logger('info', "Cleaning up after performing distro package installations...");
 		($command, $command_output, $rc) = run_command("$clean_cmd");
 		if ($rc != 0) {
 		    logger('info', "failed\n");
