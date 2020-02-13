@@ -12,6 +12,11 @@ my $me = "workshop";
 
 my %args;
 $args{'log-level'} = 'info';
+$args{'skip-update'} = 'false';
+
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--target' );
+my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
+my %update_options = ( 'true' => 1, 'false' => 1 );
 
 my $command_logger_fmt = "################################################################################\n" .
     "COMMAND:         %s\n" .
@@ -95,7 +100,26 @@ sub logger {
 sub arg_handler {
     my ($opt_name, $opt_value) = @_;
 
-    if ($opt_name eq "target") {
+    if ($opt_name eq "completions") {
+	$args{$opt_name} = 1;
+
+	if ($opt_value eq 'all') {
+	    for (my $i=0; $i<scalar(@cli_args); $i++) {
+		print $cli_args[$i] . ' ';
+	    }
+	    print "\n";
+	} elsif ($opt_value eq '--log-level') {
+	    foreach my $key (sort (keys %log_levels)) {
+		print "$key ";
+	    }
+	    print "\n";
+	} elsif ($opt_value eq '--skip-update') {
+	    foreach my $key (sort (keys %update_options)) {
+		print "$key ";
+	    }
+	    print "\n";
+	}
+    } elsif ($opt_name eq "target") {
 	$args{'target'} = $opt_value;
 
 	if (! -e $args{'target'}) {
@@ -112,13 +136,25 @@ sub arg_handler {
 
 	push(@{$args{'reqs'}}, $opt_value);
     } elsif ($opt_name eq "skip-update") {
-	$args{'skip-update'} = 1;
+	if (exists ($update_options{$opt_value})) {
+	    $args{'skip-update'} = $opt_value;
+	} else {
+	    die("--skip-update must be one of 'true' or 'false' [not '$opt_value']");
+	}
     } elsif ($opt_name eq "log-level") {
-	if (($opt_value eq 'info') ||
-	    ($opt_value eq 'verbose') ||
-	    ($opt_value eq 'debug')) {
+	if (exists($log_levels{$opt_value})) {
 	    $args{'log-level'} = $opt_value;
 	} else {
+	    my $msg = "";
+	    my @levels = (keys %log_levels);
+	    for (my $i=0; $i<scalar(@levels); $i++) {
+		if ($i == (scalar(@levels) - 1)) {
+		    $msg .= "or '" . $levels[$i] . "'";
+		} else {
+		    $msg .= "'" . $levels[$i] . "', ";
+		}
+	    }
+
 	    die("--log-level must be one of 'info', 'verbose', or 'debug' [not '$opt_value']\n");
 	}
     } else {
@@ -126,14 +162,19 @@ sub arg_handler {
     }
 }
 
-GetOptions("log-level=s" => \&arg_handler,
+GetOptions("completions=s" => \&arg_handler,
+	   "log-level=s" => \&arg_handler,
 	   "requirements=s" => \&arg_handler,
-	   "skip-update" => \&arg_handler,
+	   "skip-update=s" => \&arg_handler,
 	   "target=s" => \&arg_handler)
     or die("Error in command line arguments");
 
 logger('debug', "Argument Hash:\n");
 logger('debug', Dumper(\%args));
+
+if (exists($args{'completions'})) {
+    exit 0;
+}
 
 if (! exists $args{'target'}) {
     logger('error', "You must provide --target!\n");
@@ -372,7 +413,7 @@ if ($target_json->{'install'}{'manager'} eq "dnf") {
     exit 23;
 }
 
-if (!exists($args{'skip-update'})) {
+if ($args{'skip-update'} eq 'false') {
     # update the container's existing content
     logger('info', "Updating the temporary container...");
     ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $update_cmd");
