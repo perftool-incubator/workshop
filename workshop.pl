@@ -487,6 +487,30 @@ foreach my $fs (@virtual_fs) {
 logger('info', "succeeded\n", 1);
 logger('verbose', $mount_cmd_log);
 
+if (-e $container_mount_point . "/etc/resolv.conf") {
+    logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
+    ($command, $command_output, $rc) = run_command("mv --verbose " . $container_mount_point . "/etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf." . $me);
+    if ($rc != 0) {
+	logger('info', "failed\n", 1);
+	command_logger('error', $command, $rc, $command_output);
+	logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
+	exit 33;
+    }
+    logger('info', "succeeded\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+}
+
+logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
+($command, $command_output, $rc) = run_command("cp --verbose /etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf");
+if ($rc != 0) {
+    logger('info', "failed\n", 1);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Failed to copy /etc/resolv.conf to the temporary container!\n");
+    exit 34;
+}
+logger('info', "succeeded\n", 1);
+command_logger('verbose', $command, $rc, $command_output);
+
 # what follows is a complicated mess of code to chroot into the
 # temporary container's filesystem.  Once there all kinds of stuff can
 # be done to install packages and make other tweaks to the container
@@ -684,6 +708,30 @@ foreach my $fs (@virtual_fs) {
 }
 logger('info', "succeeded\n", 1);
 logger('verbose', $umount_cmd_log);
+
+logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n");
+($command, $command_output, $rc) = run_command("rm --verbose " . $container_mount_point . "/etc/resolv.conf");
+if ($rc != 0) {
+    logger('info', "failed\n", 1);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Failed to remove /etc/resolv.conf from the temporary container!\n");
+    exit 34;
+}
+logger('info', "succeeded\n", 1);
+command_logger('verbose', $command, $rc, $command_output);
+
+if (-e $container_mount_point . "/etc/resolv.conf." . $me) {
+    logger('info', "Restoring the backup of the temporary container's /etc/resolv.conf...\n");
+    ($command, $command_output, $rc) = run_command("mv --verbose " . $container_mount_point . "/etc/resolv.conf." . $me . " " . $container_mount_point . "/etc/resolv.conf");
+    if ($rc != 0) {
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to restore the temporary container's /etc/resolv.conf!\n");
+        exit 33;
+    }
+    logger('info', "succeeded\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+}
 
 # unmount the container image
 logger('info', "Unmounting the temporary container's filesystem...\n");
