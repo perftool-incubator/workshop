@@ -12,6 +12,7 @@ use Data::Dumper;
 $|++;
 
 my $me = "workshop";
+my $indent = "    ";
 
 my %args;
 $args{'log-level'} = 'info';
@@ -46,11 +47,18 @@ sub command_logger {
 }
 
 sub logger {
-    my ($log_level, $log_msg) = @_;
+    my ($log_level, $log_msg, $indents) = @_;
+    $indents //= 0;
 
     if (!defined($log_msg)) {
 	$log_msg = 'log_msg not defined';
     }
+
+    my $tmp_msg = "";
+    for (my $i=0; $i<$indents; $i++) {
+	$tmp_msg .= $indent;
+    }
+    $log_msg = $tmp_msg . $log_msg;
 
     my $log_it = 0;
     my $prefix = "";
@@ -245,7 +253,7 @@ foreach my $req (@{$args{'reqs'}}) {
 
 	close($req_fh);
     } else {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	logger('error', "Failed to load requirement file '$req'!\n");
 	exit 21;
     }
@@ -262,7 +270,7 @@ foreach my $tmp_req (@all_requirements) {
     } elsif (exists($tmp_req->{'json'}{'targets'}{'default'})) {
 	$target_label = 'default';
     } else {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	logger('error', "Could not find appropriate target match in requirements '$tmp_req->{'name'}' for '$target_json->{'label'}'!\n");
 	exit 22;
     }
@@ -273,7 +281,7 @@ foreach my $tmp_req (@all_requirements) {
 		($active_requirements{'hash'}{$target_package}{'requirement_type'} eq 'distro')) {
 		push(@{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}, $tmp_req->{'name'});
 	    } else {
-		logger('info', "\tfailed\n");
+		logger('info', "failed\n", 1);
 		logger('debug', "All Requirements Hash:\n");
 		logger('debug', Dumper(\@all_requirements));
 		logger('error', "There is a target package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$target_package}{'type'}' and '" .
@@ -294,7 +302,7 @@ foreach my $tmp_req (@all_requirements) {
 }
 
 # requirements processing end
-logger('info', "\tsucceeded\n");
+logger('info', "succeeded\n", 1);
 
 logger('debug', "All Requirements Hash:\n");
 logger('debug', Dumper(\@all_requirements));
@@ -318,23 +326,23 @@ if ($rc == 0) {
     logger('info', "Could not find $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}, attempting to download...\n");
     ($command, $command_output, $rc) = run_command("buildah pull --quiet $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
     if ($rc == 0) {
-	logger('info', "\tsucceeded\n");
+	logger('info', "succeeded\n", 1);
 	command_logger('verbose', $command, $rc, $command_output);
 
 	logger('info', "Querying for information about the image...\n");
 	($command, $command_output, $rc) = run_command("buildah images --json $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
 	if ($rc == 0) {
-	    logger('info', "\tsucceeded\n");
+	    logger('info', "succeeded\n", 1);
 	    command_logger('verbose', $command, $rc, $command_output);
 	    $target_json->{'source'}{'local_details'} = decode_json($command_output);
 	} else {
-	    logger('info', "\tfailed\n");
+	    logger('info', "failed\n", 1);
 	    command_logger('error', $command, $rc, $command_output);
 	    logger('error', "Failed to download/query $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
 	    exit 3;
 	}
     } else {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	command_logger('error', $command, $rc, $command_output);
 	logger('error', "Failed to download $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
 	exit 4;
@@ -350,23 +358,23 @@ my $tmp_container = $me . "_" . $target_json->{'label'};
 logger('info', "Checking for stale container presence...\n");
 ($command, $command_output, $rc) = run_command("buildah containers --filter name=$tmp_container --json");
 if ($command_output !~ /null/) {
-    logger('info', "\tfound\n");
+    logger('info', "found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 
     # need to clean up an old container
     logger('info', "Cleaning up old container...\n");
     ($command, $command_output, $rc) = run_command("buildah rm $tmp_container");
     if ($rc != 0) {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	command_logger('error', $command, $rc, $command_output);
 	logger('error', "Could not clean up old container '$tmp_container'!\n");
 	exit 5;
     } else {
-	logger('info', "\tsucceeded\n");
+	logger('info', "succeeded\n", 1);
 	command_logger('verbose', $command, $rc, $command_output);
     }
 } else {
-    logger('info', "\tnot found\n");
+    logger('info', "not found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 }
 
@@ -374,21 +382,21 @@ if ($command_output !~ /null/) {
 logger('info', "Checking if container image already exists...\n");
 ($command, $command_output, $rc) = run_command("buildah images --json $tmp_container");
 if ($rc == 0) {
-    logger('info', "\tfound\n");
+    logger('info', "found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
     logger('info', "Removing existing container image that I am about to replace [$tmp_container]...\n");
     ($command, $command_output, $rc) = run_command("buildah rmi $tmp_container");
     if ($rc != 0) {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	command_logger('error', $command, $rc, $command_output);
 	logger('error', "Could not remove existing container image '$tmp_container'!\n");
 	exit 11;
     } else {
-	logger('info', "\tsucceeded\n");
+	logger('info', "succeeded\n", 1);
 	command_logger('verbose', $command, $rc, $command_output);
     }
 } else {
-    logger('info', "\tnot found\n");
+    logger('info', "not found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 }
 
@@ -396,12 +404,12 @@ if ($rc == 0) {
 logger('info', "Creating temporary container...\n");
 ($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
 if ($rc != 0) {
-    logger('info', "\tfailed\n");
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Could not create new container '$tmp_container' from '$target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}'!\n");
     exit 6;
 } else {
-    logger('info', "\tsucceeded\n");
+    logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 }
 
@@ -423,24 +431,24 @@ if ($args{'skip-update'} eq 'false') {
     logger('info', "Updating the temporary container...\n");
     ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $update_cmd");
     if ($rc != 0) {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	command_logger('error', $command, $rc, $command_output);
 	logger('error', "Updating the temporary container '$tmp_container' failed!\n");
 	exit 7;
     } else {
-	logger('info', "\tsucceeded\n");
+	logger('info', "succeeded\n", 1);
 	command_logger('verbose', $command, $rc, $command_output);
     }
 
     logger('info', "Cleaning up after the update...\n");
     ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $clean_cmd");
     if ($rc != 0) {
-	logger('info', "\tfailed\n");
+	logger('info', "failed\n", 1);
 	command_logger('error', $command, $rc, $command_output);
 	logger('error', "Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n");
 	exit 12;
     } else {
-	logger('info', "\tsucceeded\n");
+	logger('info', "succeeded\n", 1);
 	command_logger('verbose', $command, $rc, $command_output);
     }
 } else {
@@ -451,12 +459,12 @@ if ($args{'skip-update'} eq 'false') {
 logger('info', "Mounting the temporary container's fileystem...\n");
 ($command, $command_output, $rc) = run_command("buildah mount $tmp_container");
 if ($rc != 0) {
-    logger('info', "\tfailed\n");
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to mount the temporary container's filesystem!\n");
     exit 13;
 } else {
-    logger('info', "\tsucceeded\n");
+    logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
     chomp($command_output);
     $container_mount_point = $command_output;
@@ -466,17 +474,17 @@ if ($rc != 0) {
 logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
 my $mount_cmd_log = "";
 foreach my $fs (@virtual_fs) {
-    logger('info', "\tmounting '/$fs'...\n");
+    logger('info', "mounting '/$fs'...\n", 1);
     ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $container_mount_point/$fs");
     $mount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
     if ($rc != 0) {
-	logger('info', "\t\tfailed\n");
+	logger('info', "failed\n", 2);
 	logger('error', $mount_cmd_log);
 	logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
 	exit 31;
     }
 }
-logger('info', "\tsucceeded\n");
+logger('info', "succeeded\n", 1);
 logger('verbose', $mount_cmd_log);
 
 # what follows is a complicated mess of code to chroot into the
@@ -504,7 +512,7 @@ if (opendir(NORMAL_ROOT, "/")) {
 		if ($req->{'json'}{'type'} eq 'distro') {
 		    $distro_installs = 1;
 
-		    logger('info', "\tperforming distro package installation...\n");
+		    logger('info', "performing distro package installation...\n", 1);
 
 		    my $install_cmd = "";
 		    if ($target_json->{'install'}{'manager'} eq 'dnf') {
@@ -520,98 +528,98 @@ if (opendir(NORMAL_ROOT, "/")) {
 			    $install_cmd = "yum groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
 			}
 		    } else {
-			logger('info', "\t\tfailed\n");
+			logger('info', "failed\n", 2);
 			logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
 			exit 23;
 		    }
 
 		    ($command, $command_output, $rc) = run_command("$install_cmd");
 		    if ($rc == 0) {
-			logger('info', "\t\tsucceeded\n");
+			logger('info', "succeeded\n", 2);
 			command_logger('verbose', $command, $rc, $command_output);
 		    } else {
-			logger('info', "\t\tfailed [rc=$rc]\n");
+			logger('info', "failed [rc=$rc]\n", 2);
 			command_logger('error', $command, $rc, $command_output);
 			logger('error', "Failed to install package $req->{'json'}{'distro_info'}{'pkg_name'}\n");
 			exit 24;
 		    }
 
 		} elsif ($req->{'json'}{'type'} eq 'source') {
-		    logger('info', "\tbuilding package from source for installation...\n");
+		    logger('info', "building package from source for installation...\n", 1);
 
 		    if (chdir('/root')) {
-			logger('info', "\t\tdownloading...\n");
+			logger('info', "downloading...\n", 2);
 			($command, $command_output, $rc) = run_command("curl --url $req->{'json'}{'source_info'}{'url'} --output $req->{'json'}{'source_info'}{'filename'} --location");
 			if ($rc == 0) {
-			    logger('info', "\t\tgetting directory...\n");
+			    logger('info', "getting directory...\n", 2);
 			    ($command, $command_output, $rc) = run_command("$req->{'json'}{'source_info'}{'commands'}{'get_dir'}");
 			    my $get_dir = $command_output;
 			    chomp($get_dir);
 			    if ($rc == 0) {
-				logger('info', "\t\tunpacking...\n");
+				logger('info', "unpacking...\n", 2);
 				($command, $command_output, $rc) = run_command("$req->{'json'}{'source_info'}{'commands'}{'unpack'}");
 				if ($rc == 0) {
 				    if (chdir($get_dir)) {
-					logger('info', "\t\tbuilding...\n");
+					logger('info', "building...\n", 2);
 					my $build_cmd_log = "";
 					foreach my $build_cmd (@{$req->{'json'}{'source_info'}{'commands'}{'build'}}) {
-					    logger('info', "\t\t\texecuting '$build_cmd'...\n");
+					    logger('info', "executing '$build_cmd'...\n", 3);
 					    ($command, $command_output, $rc) = run_command("$build_cmd");
 					    $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
 					    if ($rc != 0) {
-						logger('info', "\t\t\t\tfailed\n");
+						logger('info', "failed\n", 4);
 						logger('error', $build_cmd_log);
 						logger('error', "Build failed on command '$build_cmd'!\n");
 						exit 30;
 					    }
 					}
-					logger('info', "\t\tsucceeded\n");
+					logger('info', "succeeded\n", 2);
 					logger('verbose', $build_cmd_log);
 				    } else {
-					logger('info', "\t\tfailed\n");
+					logger('info', "failed\n", 2);
 					logger('error', "Could not chdir to '$get_dir'!\n");
 					exit 29;
 				    }
 				} else {
-				    logger('info', "\t\tfailed\n");
+				    logger('info', "failed\n", 2);
 				    command_logger('error', $command, $rc, $command_output);
 				    logger('error', "Could not unpack source package!\n");
 				    exit 29;
 				}
 			    } else {
-				logger('info', "\t\tfailed\n");
+				logger('info', "failed\n", 2);
 				command_logger('error', $command, $rc, $command_output);
 				logger('error', "Could not get unpack directory!\n");
 				exit 28;
 			    }
 
 			} else {
-			    logger('info', "\t\tfailed\n");
+			    logger('info', "failed\n", 2);
 			    command_logger('error', $command, $rc, $command_output);
 			    logger('error', "Could not download $req->{'json'}{'source_info'}{'url'}!\n");
 			    exit 27;
 			}
 		    } else {
-			logger('info', "\tfailed\n");
+			logger('info', "failed\n", 1);
 			logger('error', "Could not chdir to /root!\n");
 			exit 26;
 		    }
 		} elsif ($req->{'json'}{'type'} eq 'manual') {
-		    logger('info', "\tinstalling package via manually provided commands...\n");
+		    logger('info', "installing package via manually provided commands...\n", 1);
 
 		    my $install_cmd_log = "";
 		    foreach my $cmd (@{$req->{'json'}{'manual_info'}{'commands'}}) {
-			logger('info', "\t\texecuting '$cmd'...\n");
+			logger('info', "executing '$cmd'...\n", 2);
 			($command, $command_output, $rc) = run_command("$cmd");
 			$install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
 			if ($rc != 0){
-			    logger('info', "\t\t\tfailed [rc=$rc]\n");
+			    logger('info', "failed [rc=$rc]\n", 3);
 			    logger('error', $install_cmd_log);
 			    logger('error', "Failed to run command '$cmd'\n");
 			    exit 25;
 			}
 		    }
-		    logger('info', "\tsucceeded\n");
+		    logger('info', "succeeded\n", 1);
 		    logger('verbose', $install_cmd_log);
 		}
 	    }
@@ -620,12 +628,12 @@ if (opendir(NORMAL_ROOT, "/")) {
 		logger('info', "Cleaning up after performing distro package installations...\n");
 		($command, $command_output, $rc) = run_command("$clean_cmd");
 		if ($rc != 0) {
-		    logger('info', "\tfailed\n");
+		    logger('info', "failed\n", 1);
 		    command_logger('error', $command, $rc, $command_output);
 		    logger('error', "Cleaning up after distro package installation failed!\n");
 		    exit 26;
 		} else {
-		    logger('info', "\tsucceeded\n");
+		    logger('info', "succeeded\n", 1);
 		    command_logger('verbose', $command, $rc, $command_output);
 		}
 	    }
@@ -664,29 +672,29 @@ if (opendir(NORMAL_ROOT, "/")) {
 logger('info', "Unmounting /dev, /proc/, and /sys from the temporary container's filesystem...\n");
 my $umount_cmd_log = "";
 foreach my $fs (@virtual_fs) {
-    logger('info', "\tunmounting '/$fs'...\n");
+    logger('info', "unmounting '/$fs'...\n", 1);
     ($command, $command_output, $rc) = run_command("umount --verbose $container_mount_point/$fs");
     $umount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
     if ($rc != 0) {
-	logger('info', "\t\tfailed\n");
+	logger('info', "failed\n", 2);
 	logger('error', $umount_cmd_log);
 	logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
 	exit 32;
     }
 }
-logger('info', "\tsucceeded\n");
+logger('info', "succeeded\n", 1);
 logger('verbose', $umount_cmd_log);
 
 # unmount the container image
 logger('info', "Unmounting the temporary container's filesystem...\n");
 ($command, $command_output, $rc) = run_command("buildah unmount $tmp_container");
 if ($rc != 0) {
-    logger('info', "\tfailed\n");
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to unmount the temporary container's filesystem [$container_mount_point]!\n");
     exit 14;
 } else {
-    logger('info', "\tsucceeded\n");
+    logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 }
 
@@ -694,12 +702,12 @@ if ($rc != 0) {
 logger('info', "Creating new container image...\n");
 ($command, $command_output, $rc) = run_command("buildah commit --quiet $tmp_container $tmp_container");
 if ($rc != 0) {
-    logger('info', "\tfailed\n");
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to create new container image '$tmp_container'!\n");
     exit 8;
 } else {
-    logger('info', "\tsucceeded\n");
+    logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 }
 
@@ -707,12 +715,12 @@ if ($rc != 0) {
 logger('info', "Cleaning up the temporary container...\n");
 ($command, $command_output, $rc) = run_command("buildah rm $tmp_container");
 if ($rc != 0) {
-    logger('info', "\tfailed\n");
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to cleanup temporary container '$tmp_container'!\n");
     exit 9;
 } else {
-    logger('info', "\tsucceeded\n");
+    logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 }
 
@@ -720,11 +728,11 @@ if ($rc != 0) {
 logger('info', "Creation of container image '$tmp_container' is complete.  Retreiving some details about your new image...\n");
 ($command, $command_output, $rc) = run_command("buildah images --json $tmp_container");
 if ($rc == 0) {
-    logger('info', "\tsucceeded\n");
+    logger('info', "succeeded\n", 1);
     logger('info', "\n$command_output\n");
     exit 0;
 } else {
-    logger('info', "\tfailed\n");
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Could not get container image information for '$tmp_container'!  Something must have gone wrong that I don't understand.\n");
     exit 10;
