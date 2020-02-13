@@ -474,7 +474,7 @@ if (opendir(NORMAL_ROOT, "/")) {
     # jump into the container image
     if (chroot($container_mount_point)) {
 	if (chdir("/root")) {
-	    logger('info', "Installing Requirements (" . scalar(@{$active_requirements{'array'}}) . "\n");
+	    logger('info', "Installing Requirements (" . scalar(@{$active_requirements{'array'}}) . ")\n");
 
 	    my $distro_installs = 0;
 	    my $req_counter = 0;
