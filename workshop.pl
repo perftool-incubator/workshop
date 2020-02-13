@@ -21,6 +21,8 @@ my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--target' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 
+my @virtual_fs = ('dev', 'proc', 'sys');
+
 my $command_logger_fmt = "################################################################################\n" .
     "COMMAND:         %s\n" .
     "RETURN CODE:     %d\n" .
@@ -460,6 +462,23 @@ if ($rc != 0) {
     $container_mount_point = $command_output;
 }
 
+# bind mount virtual file systems that may be needed
+logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
+my $mount_cmd_log = "";
+foreach my $fs (@virtual_fs) {
+    logger('info', "\tmounting '/$fs'...\n");
+    ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $container_mount_point/$fs");
+    $mount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+    if ($rc != 0) {
+	logger('info', "\t\tfailed\n");
+	logger('error', $mount_cmd_log);
+	logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
+	exit 31;
+    }
+}
+logger('info', "\tsucceeded\n");
+logger('verbose', $mount_cmd_log);
+
 # what follows is a complicated mess of code to chroot into the
 # temporary container's filesystem.  Once there all kinds of stuff can
 # be done to install packages and make other tweaks to the container
@@ -640,6 +659,23 @@ if (opendir(NORMAL_ROOT, "/")) {
     logger('error', "Could not get directory reference to '/'!\n");
     exit 15;
 }
+
+# unmount virtual file systems that are bind mounted
+logger('info', "Unmounting /dev, /proc/, and /sys from the temporary container's filesystem...\n");
+my $umount_cmd_log = "";
+foreach my $fs (@virtual_fs) {
+    logger('info', "\tunmounting '/$fs'...\n");
+    ($command, $command_output, $rc) = run_command("umount --verbose $container_mount_point/$fs");
+    $umount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+    if ($rc != 0) {
+	logger('info', "\t\tfailed\n");
+	logger('error', $umount_cmd_log);
+	logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
+	exit 32;
+    }
+}
+logger('info', "\tsucceeded\n");
+logger('verbose', $umount_cmd_log);
 
 # unmount the container image
 logger('info', "Unmounting the temporary container's filesystem...\n");
