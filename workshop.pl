@@ -196,6 +196,8 @@ if (! exists $args{'target'}) {
 
 my $target_json;
 
+logger('info', "Loading target definition from '$args{'target'}'...\n");
+
 if (open(my $target_fh, "<", $args{'target'})) {
     my $file_contents;
     while(<$target_fh>) {
@@ -205,7 +207,10 @@ if (open(my $target_fh, "<", $args{'target'})) {
     $target_json = decode_json($file_contents);
 
     close($target_fh);
+
+    logger('info', "succeeded\n", 1);
 } else {
+    logger('info', "failed\n", 1);
     logger('error', "Could not open target file '$args{'target'}' for reading!\n");
     exit 2;
 }
@@ -220,6 +225,8 @@ my $target_reqs = { 'name' => $args{'target'},
 				'packages' => {} } };
 
 if (exists($target_json->{'install'}{'packages'})) {
+    logger('info', "target requested packages...\n", 1);
+
     foreach my $pkg (@{$target_json->{'install'}{'packages'}}) {
 	push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
 
@@ -229,6 +236,8 @@ if (exists($target_json->{'install'}{'packages'})) {
 }
 
 if (exists($target_json->{'install'}{'groups'})) {
+    logger('info', "target requested package groups...\n", 1);
+
     foreach my $pkg (@{$target_json->{'install'}{'groups'}}) {
 	push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
 
@@ -240,6 +249,8 @@ if (exists($target_json->{'install'}{'groups'})) {
 push(@all_requirements, $target_reqs);
 
 foreach my $req (@{$args{'reqs'}}) {
+    logger('info', "loading '$req'...\n",1);
+
     if (open(my $req_fh, "<", $req)) {
 	my $file_contents;
 	while(<$req_fh>) {
@@ -253,7 +264,7 @@ foreach my $req (@{$args{'reqs'}}) {
 
 	close($req_fh);
     } else {
-	logger('info', "failed\n", 1);
+	logger('info', "failed\n", 2);
 	logger('error', "Failed to load requirement file '$req'!\n");
 	exit 21;
     }
