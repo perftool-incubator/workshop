@@ -134,8 +134,10 @@ sub arg_handler {
         }
         print "\n";
     }
+    } elsif ($opt_name eq "label") {
+        $args{'label'} = $opt_value;
     } elsif ($opt_name eq "target") {
-    $args{'target'} = $opt_value;
+        $args{'target'} = $opt_value;
 
     if (! -e $args{'target'}) {
         die("--target must be a valid file [not '$args{'target'}']");
@@ -181,7 +183,8 @@ GetOptions("completions=s" => \&arg_handler,
        "log-level=s" => \&arg_handler,
        "requirements=s" => \&arg_handler,
        "skip-update=s" => \&arg_handler,
-       "target=s" => \&arg_handler)
+       "target=s" => \&arg_handler,
+       "label=s" => \&arg_handler)
     or die("Error in command line arguments");
 
 logger('debug', "Argument Hash:\n");
@@ -366,6 +369,9 @@ logger('debug', "Target JSON:\n");
 logger('debug', Dumper($target_json));
 
 my $tmp_container = $me . "_" . $target_json->{'label'};
+if (defined $args{'label'}) {
+    $tmp_container .= "_" . $args{'label'};
+}
 
 # make sure there isn't an old container hanging around
 logger('info', "Checking for stale container presence...\n");
@@ -703,6 +709,47 @@ if (opendir(NORMAL_ROOT, "/")) {
 } else {
     logger('error', "Could not get directory reference to '/'!\n");
     exit 15;
+}
+
+# copy over any files from any requirements
+foreach my $req (@{$active_requirements{'array'}}) {
+    if ($req->{'json'}{'type'} eq 'files') {
+        # currently a single, local file is supported
+        if ($req->{'json'}{'files_info'}{'type'} eq 'local-copy') {
+            if (-e $req->{'json'}{'files_info'}{'src'}) {
+                if (defined $req->{'json'}{'files_info'}{'dst'}) {
+                    ($command, $command_output, $rc) = run_command("/bin/cp -LR " .
+                                                        $req->{'json'}{'files_info'}{'src'} .
+                                                        " " . $container_mount_point . "/" .
+                                                        $req->{'json'}{'files_info'}{'dst'});
+                    if ($rc != 0) {
+                        logger('info', "failed\n", 1);
+                        command_logger('error', $command, $rc, $command_output);
+                        logger('error', "Failed to copy \"$req->{'json'}{'files_info'}{'src'}\" to the temporary container!\n");
+                        exit 35;
+                    }
+                } else {
+                    logger('info', "failed\n", 1);
+                    command_logger('error', $command, $rc, $command_output);
+                    logger('error', "Destination \"$req->{'json'}{'files_info'}{'dst'}\" not defined!\n");
+                    exit 36;
+                }
+            } else {
+                logger('info', "failed\n", 1);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Local source file \"$req->{'json'}{'files_info'}{'src'}\" not found!\n");
+                print Dumper $req;
+                exit 36;
+            }
+            logger('info', "succeeded\n", 1);
+            command_logger('verbose', $command, $rc, $command_output);
+        } else {
+            logger('info', "failed\n", 1);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "file requirement type \"$req->{'json'}{'files_info'}{'type'}\" not supported!\n");
+            exit 37;
+        }
+    }
 }
 
 # unmount virtual file systems that are bind mounted
