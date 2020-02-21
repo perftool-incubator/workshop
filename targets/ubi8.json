@@ -1,0 +1,15 @@
+{
+    "name": "Red Hat UBI 8",
+    "label": "rhubi8",
+    "source": {
+	"image": "registry.redhat.io/ubi8/ubi",
+	"tag": "latest"
+    },
+    "install": {
+	"type": "rpm",
+	"manager": "dnf",
+	"packages": [
+	    "python36", "libaio", "gcc", "make", "git"
+	]
+    }
+}
