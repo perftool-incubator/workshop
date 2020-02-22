@@ -1,18 +1,36 @@
 {
-    "name": "Fedora 31",
-    "label": "fedora31",
-    "source": {
-	"image": "docker.io/library/fedora",
-	"tag": "31"
+    "userenv": {
+	"name": "fedora31",
+	"label": "Fedora 31",
+	"source": {
+	    "image": "docker.io/library/fedora",
+	    "tag": "31"
+	},
+	"properties": {
+	    "packages": {
+		"type": "rpm",
+		"manager": "dnf"
+	    }
+	}
     },
-    "install": {
-	"type": "rpm",
-	"manager": "dnf",
-	"packages": [
-	    "python36"
-	],
-	"groups": [
-	    "\"Development Tools\""
-	]
-    }
+    "requirements": [
+	{
+	    "name": "python36",
+	    "type": "distro",
+	    "distro_info": {
+		"packages": [
+		    "python36"
+		]
+	    }
+	},
+	{
+	    "name": "development-tools",
+	    "type": "distro",
+	    "distro_info": {
+		"groups": [
+		    "\"Development Tools\""
+		]
+	    }
+	}
+    ]
 }
