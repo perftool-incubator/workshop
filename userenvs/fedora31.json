@@ -2,7 +2,7 @@
     "userenv": {
 	"name": "fedora31",
 	"label": "Fedora 31",
-	"source": {
+	"origin": {
 	    "image": "docker.io/library/fedora",
 	    "tag": "31"
 	},

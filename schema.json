@@ -14,7 +14,7 @@
 		"empty": false,
 		"required": true
 	    },
-	    "source": {
+	    "origin": {
 		"type": "dict",
 		"required": true,
 		"schema": {
