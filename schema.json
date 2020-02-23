@@ -1,4 +1,22 @@
 {
+    "workshop": {
+	"type": "dict",
+	"required": true,
+	"schema": {
+	    "schema": {
+		"type": "dict",
+		"required": true,
+		"schema": {
+		    "version": {
+			"allowed": [
+			    "2020.02.23"
+			],
+			"required": true
+		    }
+		}
+	    }
+	}
+    },
     "userenv": {
 	"type": "dict",
 	"required": true,
