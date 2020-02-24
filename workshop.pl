@@ -53,12 +53,12 @@ sub logger {
     $indents //= 0;
 
     if (!defined($log_msg)) {
-    $log_msg = 'log_msg not defined';
+        $log_msg = 'log_msg not defined';
     }
 
     my $tmp_msg = "";
     for (my $i=0; $i<$indents; $i++) {
-    $tmp_msg .= $indent;
+        $tmp_msg .= $indent;
     }
     $log_msg = $tmp_msg . $log_msg;
 
@@ -66,49 +66,49 @@ sub logger {
     my $prefix = "";
 
     if (($log_level eq 'debug') &&
-    ($args{'log-level'} eq 'debug')) {
-    $log_it = 1;
-    $prefix = "[DEBUG] ";
+        ($args{'log-level'} eq 'debug')) {
+        $log_it = 1;
+        $prefix = "[DEBUG] ";
     } elsif (($log_level eq 'verbose') &&
-         (($args{'log-level'} eq 'debug') ||
-          ($args{'log-level'} eq 'verbose'))) {
-    $log_it = 1;
-    $prefix = "[VERBOSE] ";
+             (($args{'log-level'} eq 'debug') ||
+              ($args{'log-level'} eq 'verbose'))) {
+        $log_it = 1;
+        $prefix = "[VERBOSE] ";
     } elsif (($log_level eq 'info') &&
-         (($args{'log-level'} eq 'debug') ||
-          ($args{'log-level'} eq 'verbose') ||
-          ($args{'log-level'} eq 'info'))) {
-    $log_it = 1;
+             (($args{'log-level'} eq 'debug') ||
+              ($args{'log-level'} eq 'verbose') ||
+              ($args{'log-level'} eq 'info'))) {
+        $log_it = 1;
     } elsif ($log_level eq 'error') {
-    $log_it = 1;
-    $prefix = "[ERROR] ";
+        $log_it = 1;
+        $prefix = "[ERROR] ";
     }
 
     if (!$log_it) {
-    return;
+        return;
     }
 
     my $add_newline = 0;
     if ($log_msg =~ /\n$/) {
-    $add_newline = 1;
+        $add_newline = 1;
     }
 
     if ($log_msg eq "") {
-    print $prefix;
-    return;
+        print $prefix;
+        return;
     }
 
     my @lines = split(/\n/, $log_msg);
 
     my $line_idx = 0;
     for ($line_idx=0; $line_idx<(scalar(@lines) - 1); $line_idx++) {
-    print $prefix . $lines[$line_idx] . "\n";
+        print $prefix . $lines[$line_idx] . "\n";
     }
 
     if ($add_newline) {
-    print $prefix . $lines[$line_idx] . "\n";
+        print $prefix . $lines[$line_idx] . "\n";
     } else {
-    print $prefix . $lines[$line_idx];
+        print $prefix . $lines[$line_idx];
     }
 }
 
@@ -116,75 +116,75 @@ sub arg_handler {
     my ($opt_name, $opt_value) = @_;
 
     if ($opt_name eq "completions") {
-    $args{$opt_name} = 1;
+        $args{$opt_name} = 1;
 
-    if ($opt_value eq 'all') {
-        for (my $i=0; $i<scalar(@cli_args); $i++) {
-        print $cli_args[$i] . ' ';
+        if ($opt_value eq 'all') {
+            for (my $i=0; $i<scalar(@cli_args); $i++) {
+                print $cli_args[$i] . ' ';
+            }
+            print "\n";
+        } elsif ($opt_value eq '--log-level') {
+            foreach my $key (sort (keys %log_levels)) {
+                print "$key ";
+            }
+            print "\n";
+        } elsif ($opt_value eq '--skip-update') {
+            foreach my $key (sort (keys %update_options)) {
+                print "$key ";
+            }
+            print "\n";
         }
-        print "\n";
-    } elsif ($opt_value eq '--log-level') {
-        foreach my $key (sort (keys %log_levels)) {
-        print "$key ";
-        }
-        print "\n";
-    } elsif ($opt_value eq '--skip-update') {
-        foreach my $key (sort (keys %update_options)) {
-        print "$key ";
-        }
-        print "\n";
-    }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
     } elsif ($opt_name eq "target") {
         $args{'target'} = $opt_value;
 
-    if (! -e $args{'target'}) {
-        die("--target must be a valid file [not '$args{'target'}']");
-    }
+        if (! -e $args{'target'}) {
+            die("--target must be a valid file [not '$args{'target'}']");
+        }
     } elsif ($opt_name eq "requirements") {
-    if (! exists $args{'reqs'}) {
-        $args{'reqs'} = ();
-    }
+        if (! exists $args{'reqs'}) {
+            $args{'reqs'} = ();
+        }
 
-    if (! -e $opt_value) {
-        die("--requirements must be a valid file [not '$opt_value']");
-    }
+        if (! -e $opt_value) {
+            die("--requirements must be a valid file [not '$opt_value']");
+        }
 
-    push(@{$args{'reqs'}}, $opt_value);
+        push(@{$args{'reqs'}}, $opt_value);
     } elsif ($opt_name eq "skip-update") {
-    if (exists ($update_options{$opt_value})) {
-        $args{'skip-update'} = $opt_value;
-    } else {
-        die("--skip-update must be one of 'true' or 'false' [not '$opt_value']");
-    }
-    } elsif ($opt_name eq "log-level") {
-    if (exists($log_levels{$opt_value})) {
-        $args{'log-level'} = $opt_value;
-    } else {
-        my $msg = "";
-        my @levels = (keys %log_levels);
-        for (my $i=0; $i<scalar(@levels); $i++) {
-        if ($i == (scalar(@levels) - 1)) {
-            $msg .= "or '" . $levels[$i] . "'";
+        if (exists ($update_options{$opt_value})) {
+            $args{'skip-update'} = $opt_value;
         } else {
-            $msg .= "'" . $levels[$i] . "', ";
+            die("--skip-update must be one of 'true' or 'false' [not '$opt_value']");
         }
-        }
+    } elsif ($opt_name eq "log-level") {
+        if (exists($log_levels{$opt_value})) {
+            $args{'log-level'} = $opt_value;
+        } else {
+            my $msg = "";
+            my @levels = (keys %log_levels);
+            for (my $i=0; $i<scalar(@levels); $i++) {
+                if ($i == (scalar(@levels) - 1)) {
+                    $msg .= "or '" . $levels[$i] . "'";
+                } else {
+                    $msg .= "'" . $levels[$i] . "', ";
+                }
+            }
 
-        die("--log-level must be one of 'info', 'verbose', or 'debug' [not '$opt_value']\n");
-    }
+            die("--log-level must be one of 'info', 'verbose', or 'debug' [not '$opt_value']\n");
+        }
     } else {
-    die("I'm confused, how did I get here [$opt_name]?");
+        die("I'm confused, how did I get here [$opt_name]?");
     }
 }
 
 GetOptions("completions=s" => \&arg_handler,
-       "log-level=s" => \&arg_handler,
-       "requirements=s" => \&arg_handler,
-       "skip-update=s" => \&arg_handler,
-       "target=s" => \&arg_handler,
-       "label=s" => \&arg_handler)
+           "log-level=s" => \&arg_handler,
+           "requirements=s" => \&arg_handler,
+           "skip-update=s" => \&arg_handler,
+           "target=s" => \&arg_handler,
+           "label=s" => \&arg_handler)
     or die("Error in command line arguments");
 
 logger('debug', "Argument Hash:\n");
@@ -206,7 +206,7 @@ logger('info', "Loading target definition from '$args{'target'}'...\n");
 if (open(my $target_fh, "<", $args{'target'})) {
     my $file_contents;
     while(<$target_fh>) {
-    $file_contents .= $_;
+        $file_contents .= $_;
     }
 
     $target_json = decode_json($file_contents);
@@ -226,17 +226,17 @@ my %active_requirements;
 logger('info', "Processing requested requirements...\n");
 
 my $target_reqs = { 'name' => $args{'target'},
-            'json' => { 'targets' => { $target_json->{'label'} => { 'packages' => [] } },
-                'packages' => {} } };
+                    'json' => { 'targets' => { $target_json->{'label'} => { 'packages' => [] } },
+                                'packages' => {} } };
 
 if (exists($target_json->{'install'}{'packages'})) {
     logger('info', "target requested packages...\n", 1);
 
     foreach my $pkg (@{$target_json->{'install'}{'packages'}}) {
-    push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
+        push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
 
-    $target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
-                             'distro_info' => { 'pkg_name' => $pkg } };
+        $target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
+                                                     'distro_info' => { 'pkg_name' => $pkg } };
     }
 }
 
@@ -244,10 +244,10 @@ if (exists($target_json->{'install'}{'groups'})) {
     logger('info', "target requested package groups...\n", 1);
 
     foreach my $pkg (@{$target_json->{'install'}{'groups'}}) {
-    push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
+        push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
 
-    $target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
-                             'distro_info' => { 'group_name' => $pkg } };
+        $target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
+                                                     'distro_info' => { 'group_name' => $pkg } };
     }
 }
 
@@ -257,21 +257,21 @@ foreach my $req (@{$args{'reqs'}}) {
     logger('info', "loading '$req'...\n",1);
 
     if (open(my $req_fh, "<", $req)) {
-    my $file_contents;
-    while(<$req_fh>) {
-        $file_contents .= $_;
-    }
+        my $file_contents;
+        while(<$req_fh>) {
+            $file_contents .= $_;
+        }
 
-    my $tmp_req = { 'name' => $req,
-            'json' => decode_json($file_contents) };
+        my $tmp_req = { 'name' => $req,
+                        'json' => decode_json($file_contents) };
 
-    push(@all_requirements, $tmp_req);
+        push(@all_requirements, $tmp_req);
 
-    close($req_fh);
+        close($req_fh);
     } else {
-    logger('info', "failed\n", 2);
-    logger('error', "Failed to load requirement file '$req'!\n");
-    exit 21;
+        logger('info', "failed\n", 2);
+        logger('error', "Failed to load requirement file '$req'!\n");
+        exit 21;
     }
 }
 
@@ -282,38 +282,38 @@ foreach my $tmp_req (@all_requirements) {
     my $target_label;
 
     if (exists($tmp_req->{'json'}{'targets'}{$target_json->{'label'}})) {
-    $target_label = $target_json->{'label'};
+        $target_label = $target_json->{'label'};
     } elsif (exists($tmp_req->{'json'}{'targets'}{'default'})) {
-    $target_label = 'default';
+        $target_label = 'default';
     } else {
-    logger('info', "failed\n", 1);
-    logger('error', "Could not find appropriate target match in requirements '$tmp_req->{'name'}' for '$target_json->{'label'}'!\n");
-    exit 22;
+        logger('info', "failed\n", 1);
+        logger('error', "Could not find appropriate target match in requirements '$tmp_req->{'name'}' for '$target_json->{'label'}'!\n");
+        exit 22;
     }
 
     for my $target_package (@{$tmp_req->{'json'}{'targets'}{$target_label}{'packages'}}) {
-    if (exists($active_requirements{'hash'}{$target_package})) {
-        if (($tmp_req->{'json'}{'packages'}{$target_package}{'type'} eq 'distro') &&
-        ($active_requirements{'hash'}{$target_package}{'requirement_type'} eq 'distro')) {
-        push(@{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}, $tmp_req->{'name'});
+        if (exists($active_requirements{'hash'}{$target_package})) {
+            if (($tmp_req->{'json'}{'packages'}{$target_package}{'type'} eq 'distro') &&
+                ($active_requirements{'hash'}{$target_package}{'requirement_type'} eq 'distro')) {
+                push(@{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}, $tmp_req->{'name'});
+            } else {
+                logger('info', "failed\n", 1);
+                logger('debug', "All Requirements Hash:\n");
+                logger('debug', Dumper(\@all_requirements));
+                logger('error', "There is a target package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$target_package}{'type'}' and '" .
+                       join(',', @{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}) .
+                       "' with type '$active_requirements{'hash'}{$target_package}{'requirement_type'}' for '$target_package'!\n");
+                exit 23;
+            }
         } else {
-        logger('info', "failed\n", 1);
-        logger('debug', "All Requirements Hash:\n");
-        logger('debug', Dumper(\@all_requirements));
-        logger('error', "There is a target package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$target_package}{'type'}' and '" .
-               join(',', @{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}) .
-               "' with type '$active_requirements{'hash'}{$target_package}{'requirement_type'}' for '$target_package'!\n");
-        exit 23;
-        }
-    } else {
-        $active_requirements{'hash'}{$target_package} = { 'requirement_sources' => [
-                                  $tmp_req->{'name'}
-                                  ],
-                                  'requirement_type' => $tmp_req->{'json'}{'packages'}{$target_package}{'type'} };
+            $active_requirements{'hash'}{$target_package} = { 'requirement_sources' => [
+                                                                  $tmp_req->{'name'}
+                                                                  ],
+                                                              'requirement_type' => $tmp_req->{'json'}{'packages'}{$target_package}{'type'} };
 
-        push(@{$active_requirements{'array'}}, { 'label' => $target_package,
-                             'json' => $tmp_req->{'json'}{'packages'}{$target_package} });
-    }
+            push(@{$active_requirements{'array'}}, { 'label' => $target_package,
+                                                     'json' => $tmp_req->{'json'}{'packages'}{$target_package} });
+        }
     }
 }
 
@@ -342,26 +342,26 @@ if ($rc == 0) {
     logger('info', "Could not find $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}, attempting to download...\n");
     ($command, $command_output, $rc) = run_command("buildah pull --quiet $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
     if ($rc == 0) {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
-
-    logger('info', "Querying for information about the image...\n");
-    ($command, $command_output, $rc) = run_command("buildah images --json $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
-    if ($rc == 0) {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
-        $target_json->{'source'}{'local_details'} = decode_json($command_output);
+
+        logger('info', "Querying for information about the image...\n");
+        ($command, $command_output, $rc) = run_command("buildah images --json $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
+        if ($rc == 0) {
+            logger('info', "succeeded\n", 1);
+            command_logger('verbose', $command, $rc, $command_output);
+            $target_json->{'source'}{'local_details'} = decode_json($command_output);
+        } else {
+            logger('info', "failed\n", 1);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to download/query $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
+            exit 3;
+        }
     } else {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to download/query $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
-        exit 3;
-    }
-    } else {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Failed to download $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
-    exit 4;
+        logger('error', "Failed to download $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
+        exit 4;
     }
 }
 
@@ -384,13 +384,13 @@ if ($command_output !~ /null/) {
     logger('info', "Cleaning up old container...\n");
     ($command, $command_output, $rc) = run_command("buildah rm $tmp_container");
     if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not clean up old container '$tmp_container'!\n");
-    exit 5;
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Could not clean up old container '$tmp_container'!\n");
+        exit 5;
     } else {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
     }
 } else {
     logger('info', "not found\n", 1);
@@ -406,13 +406,13 @@ if ($rc == 0) {
     logger('info', "Removing existing container image that I am about to replace [$tmp_container]...\n");
     ($command, $command_output, $rc) = run_command("buildah rmi $tmp_container");
     if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not remove existing container image '$tmp_container'!\n");
-    exit 11;
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Could not remove existing container image '$tmp_container'!\n");
+        exit 11;
     } else {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
     }
 } else {
     logger('info', "not found\n", 1);
@@ -450,25 +450,25 @@ if ($args{'skip-update'} eq 'false') {
     logger('info', "Updating the temporary container...\n");
     ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $update_cmd");
     if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Updating the temporary container '$tmp_container' failed!\n");
-    exit 7;
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Updating the temporary container '$tmp_container' failed!\n");
+        exit 7;
     } else {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
     }
 
     logger('info', "Cleaning up after the update...\n");
     ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $clean_cmd");
     if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n");
-    exit 12;
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n");
+        exit 12;
     } else {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
     }
 } else {
     logger('info', "Skipping update due to --skip-update\n");
@@ -497,10 +497,10 @@ foreach my $fs (@virtual_fs) {
     ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $container_mount_point/$fs");
     $mount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
     if ($rc != 0) {
-    logger('info', "failed\n", 2);
-    logger('error', $mount_cmd_log);
-    logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
-    exit 31;
+        logger('info', "failed\n", 2);
+        logger('error', $mount_cmd_log);
+        logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
+        exit 31;
     }
 }
 logger('info', "succeeded\n", 1);
@@ -510,10 +510,10 @@ if (-e $container_mount_point . "/etc/resolv.conf") {
     logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
     ($command, $command_output, $rc) = run_command("mv --verbose " . $container_mount_point . "/etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf." . $me);
     if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
-    exit 33;
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
+        exit 33;
     }
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -543,166 +543,165 @@ if (opendir(NORMAL_ROOT, "/")) {
 
     # jump into the container image
     if (chroot($container_mount_point)) {
-    if (chdir("/root")) {
-        logger('info', "Installing Requirements (" . scalar(@{$active_requirements{'array'}}) . ")\n");
+        if (chdir("/root")) {
+            logger('info', "Installing Requirements (" . scalar(@{$active_requirements{'array'}}) . ")\n");
 
-        my $distro_installs = 0;
-        my $req_counter = 0;
-        foreach my $req (@{$active_requirements{'array'}}) {
-        $req_counter += 1;
-        logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing $req->{'label'}...\n");
+            my $distro_installs = 0;
+            my $req_counter = 0;
+            foreach my $req (@{$active_requirements{'array'}}) {
+                $req_counter += 1;
+                logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing $req->{'label'}...\n");
 
-        if ($req->{'json'}{'type'} eq 'distro') {
-            $distro_installs = 1;
+                if ($req->{'json'}{'type'} eq 'distro') {
+                    $distro_installs = 1;
 
-            logger('info', "performing distro package installation...\n", 1);
+                    logger('info', "performing distro package installation...\n", 1);
 
-            my $install_cmd = "";
-            if ($target_json->{'install'}{'manager'} eq 'dnf') {
-            if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
-                $install_cmd = "dnf install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
-            } elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
-                $install_cmd = "dnf groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
-            }
-            } elsif ($target_json->{'install'}{'manager'} eq 'yum') {
-            if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
-                $install_cmd = "yum install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
-            } elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
-                $install_cmd = "yum groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
-            }
-            } else {
-            logger('info', "failed\n", 2);
-            logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
-            exit 23;
-            }
+                    my $install_cmd = "";
+                    if ($target_json->{'install'}{'manager'} eq 'dnf') {
+                        if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
+                            $install_cmd = "dnf install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
+                        } elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
+                            $install_cmd = "dnf groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
+                        }
+                    } elsif ($target_json->{'install'}{'manager'} eq 'yum') {
+                        if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
+                            $install_cmd = "yum install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
+                        } elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
+                            $install_cmd = "yum groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
+                        }
+                    } else {
+                        logger('info', "failed\n", 2);
+                        logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
+                        exit 23;
+                    }
 
-            ($command, $command_output, $rc) = run_command("$install_cmd");
-            if ($rc == 0) {
-            logger('info', "succeeded\n", 2);
-            command_logger('verbose', $command, $rc, $command_output);
-            } else {
-            logger('info', "failed [rc=$rc]\n", 2);
-            command_logger('error', $command, $rc, $command_output);
-            logger('error', "Failed to install package $req->{'json'}{'distro_info'}{'pkg_name'}\n");
-            exit 24;
-            }
+                    ($command, $command_output, $rc) = run_command("$install_cmd");
+                    if ($rc == 0) {
+                        logger('info', "succeeded\n", 2);
+                        command_logger('verbose', $command, $rc, $command_output);
+                    } else {
+                        logger('info', "failed [rc=$rc]\n", 2);
+                        command_logger('error', $command, $rc, $command_output);
+                        logger('error', "Failed to install package $req->{'json'}{'distro_info'}{'pkg_name'}\n");
+                        exit 24;
+                    }
 
-        } elsif ($req->{'json'}{'type'} eq 'source') {
-            logger('info', "building package from source for installation...\n", 1);
+                } elsif ($req->{'json'}{'type'} eq 'source') {
+                    logger('info', "building package from source for installation...\n", 1);
 
-            if (chdir('/root')) {
-            logger('info', "downloading...\n", 2);
-            ($command, $command_output, $rc) = run_command("curl --url $req->{'json'}{'source_info'}{'url'} --output $req->{'json'}{'source_info'}{'filename'} --location");
-            if ($rc == 0) {
-                logger('info', "getting directory...\n", 2);
-                ($command, $command_output, $rc) = run_command("$req->{'json'}{'source_info'}{'commands'}{'get_dir'}");
-                my $get_dir = $command_output;
-                chomp($get_dir);
-                if ($rc == 0) {
-                logger('info', "unpacking...\n", 2);
-                ($command, $command_output, $rc) = run_command("$req->{'json'}{'source_info'}{'commands'}{'unpack'}");
-                if ($rc == 0) {
-                    if (chdir($get_dir)) {
-                    logger('info', "building...\n", 2);
-                    my $build_cmd_log = "";
-                    foreach my $build_cmd (@{$req->{'json'}{'source_info'}{'commands'}{'build'}}) {
-                        logger('info', "executing '$build_cmd'...\n", 3);
-                        ($command, $command_output, $rc) = run_command("$build_cmd");
-                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                        if ($rc != 0) {
-                        logger('info', "failed\n", 4);
-                        logger('error', $build_cmd_log);
-                        logger('error', "Build failed on command '$build_cmd'!\n");
-                        exit 30;
+                    if (chdir('/root')) {
+                        logger('info', "downloading...\n", 2);
+                        ($command, $command_output, $rc) = run_command("curl --url $req->{'json'}{'source_info'}{'url'} --output $req->{'json'}{'source_info'}{'filename'} --location");
+                        if ($rc == 0) {
+                            logger('info', "getting directory...\n", 2);
+                            ($command, $command_output, $rc) = run_command("$req->{'json'}{'source_info'}{'commands'}{'get_dir'}");
+                            my $get_dir = $command_output;
+                            chomp($get_dir);
+                            if ($rc == 0) {
+                                logger('info', "unpacking...\n", 2);
+                                ($command, $command_output, $rc) = run_command("$req->{'json'}{'source_info'}{'commands'}{'unpack'}");
+                                if ($rc == 0) {
+                                    if (chdir($get_dir)) {
+                                        logger('info', "building...\n", 2);
+                                        my $build_cmd_log = "";
+                                        foreach my $build_cmd (@{$req->{'json'}{'source_info'}{'commands'}{'build'}}) {
+                                            logger('info', "executing '$build_cmd'...\n", 3);
+                                            ($command, $command_output, $rc) = run_command("$build_cmd");
+                                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                            if ($rc != 0) {
+                                                logger('info', "failed\n", 4);
+                                                logger('error', $build_cmd_log);
+                                                logger('error', "Build failed on command '$build_cmd'!\n");
+                                                exit 30;
+                                            }
+                                        }
+                                        logger('info', "succeeded\n", 2);
+                                        logger('verbose', $build_cmd_log);
+                                    } else {
+                                        logger('info', "failed\n", 2);
+                                        logger('error', "Could not chdir to '$get_dir'!\n");
+                                        exit 29;
+                                    }
+                                } else {
+                                    logger('info', "failed\n", 2);
+                                    command_logger('error', $command, $rc, $command_output);
+                                    logger('error', "Could not unpack source package!\n");
+                                    exit 29;
+                                }
+                            } else {
+                                logger('info', "failed\n", 2);
+                                command_logger('error', $command, $rc, $command_output);
+                                logger('error', "Could not get unpack directory!\n");
+                                exit 28;
+                            }
+                        } else {
+                            logger('info', "failed\n", 2);
+                            command_logger('error', $command, $rc, $command_output);
+                            logger('error', "Could not download $req->{'json'}{'source_info'}{'url'}!\n");
+                            exit 27;
+                        }
+                    } else {
+                        logger('info', "failed\n", 1);
+                        logger('error', "Could not chdir to /root!\n");
+                        exit 26;
+                    }
+                } elsif ($req->{'json'}{'type'} eq 'manual') {
+                    logger('info', "installing package via manually provided commands...\n", 1);
+
+                    my $install_cmd_log = "";
+                    foreach my $cmd (@{$req->{'json'}{'manual_info'}{'commands'}}) {
+                        logger('info', "executing '$cmd'...\n", 2);
+                        ($command, $command_output, $rc) = run_command("$cmd");
+                        $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                        if ($rc != 0){
+                            logger('info', "failed [rc=$rc]\n", 3);
+                            logger('error', $install_cmd_log);
+                            logger('error', "Failed to run command '$cmd'\n");
+                            exit 25;
                         }
                     }
-                    logger('info', "succeeded\n", 2);
-                    logger('verbose', $build_cmd_log);
-                    } else {
-                    logger('info', "failed\n", 2);
-                    logger('error', "Could not chdir to '$get_dir'!\n");
-                    exit 29;
+                    logger('info', "succeeded\n", 1);
+                    logger('verbose', $install_cmd_log);
+                }
+            }
+
+            if ($distro_installs) {
+                logger('info', "Cleaning up after performing distro package installations...\n");
+                ($command, $command_output, $rc) = run_command("$clean_cmd");
+                if ($rc != 0) {
+                    logger('info', "failed\n", 1);
+                    command_logger('error', $command, $rc, $command_output);
+                    logger('error', "Cleaning up after distro package installation failed!\n");
+                    exit 26;
+                } else {
+                    logger('info', "succeeded\n", 1);
+                    command_logger('verbose', $command, $rc, $command_output);
+                }
+            }
+
+            # break out of the chroot and return to the old path/pwd
+            if (chdir(*NORMAL_ROOT)) {
+                if (chroot(".")) {
+                    if (!chdir($pwd)) {
+                        logger('error', "Could not chdir back to the original path/pwd!\n");
+                        exit 20;
                     }
                 } else {
-                    logger('info', "failed\n", 2);
-                    command_logger('error', $command, $rc, $command_output);
-                    logger('error', "Could not unpack source package!\n");
-                    exit 29;
+                    logger('error', "Could not chroot out of the chroot!\n");
+                    exit 19;
                 }
-                } else {
-                logger('info', "failed\n", 2);
-                command_logger('error', $command, $rc, $command_output);
-                logger('error', "Could not get unpack directory!\n");
-                exit 28;
-                }
-
             } else {
-                logger('info', "failed\n", 2);
-                command_logger('error', $command, $rc, $command_output);
-                logger('error', "Could not download $req->{'json'}{'source_info'}{'url'}!\n");
-                exit 27;
-            }
-            } else {
-            logger('info', "failed\n", 1);
-            logger('error', "Could not chdir to /root!\n");
-            exit 26;
-            }
-        } elsif ($req->{'json'}{'type'} eq 'manual') {
-            logger('info', "installing package via manually provided commands...\n", 1);
-
-            my $install_cmd_log = "";
-            foreach my $cmd (@{$req->{'json'}{'manual_info'}{'commands'}}) {
-            logger('info', "executing '$cmd'...\n", 2);
-            ($command, $command_output, $rc) = run_command("$cmd");
-            $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-            if ($rc != 0){
-                logger('info', "failed [rc=$rc]\n", 3);
-                logger('error', $install_cmd_log);
-                logger('error', "Failed to run command '$cmd'\n");
-                exit 25;
-            }
-            }
-            logger('info', "succeeded\n", 1);
-            logger('verbose', $install_cmd_log);
-        }
-        }
-
-        if ($distro_installs) {
-        logger('info', "Cleaning up after performing distro package installations...\n");
-        ($command, $command_output, $rc) = run_command("$clean_cmd");
-        if ($rc != 0) {
-            logger('info', "failed\n", 1);
-            command_logger('error', $command, $rc, $command_output);
-            logger('error', "Cleaning up after distro package installation failed!\n");
-            exit 26;
-        } else {
-            logger('info', "succeeded\n", 1);
-            command_logger('verbose', $command, $rc, $command_output);
-        }
-        }
-
-        # break out of the chroot and return to the old path/pwd
-        if (chdir(*NORMAL_ROOT)) {
-        if (chroot(".")) {
-            if (!chdir($pwd)) {
-            logger('error', "Could not chdir back to the original path/pwd!\n");
-            exit 20;
+                logger('error', "Could not chdir to escape the chroot!\n");
+                exit 18;
             }
         } else {
-            logger('error', "Could not chroot out of the chroot!\n");
-            exit 19;
-        }
-        } else {
-        logger('error', "Could not chdir to escape the chroot!\n");
-        exit 18;
+            logger('error', "Could not chdir to temporary container mount point [$container_mount_point]!\n");
+            exit 17;
         }
     } else {
-        logger('error', "Could not chdir to temporary container mount point [$container_mount_point]!\n");
-        exit 17;
-    }
-    } else {
-    logger('error', "Could not chroot to temporary container mount point [$container_mount_point]!\n");
-    exit 16;
+        logger('error', "Could not chroot to temporary container mount point [$container_mount_point]!\n");
+        exit 16;
     }
 
     closedir(NORMAL_ROOT);
@@ -719,9 +718,9 @@ foreach my $req (@{$active_requirements{'array'}}) {
             if (-e $req->{'json'}{'files_info'}{'src'}) {
                 if (defined $req->{'json'}{'files_info'}{'dst'}) {
                     ($command, $command_output, $rc) = run_command("/bin/cp -LR " .
-                                                        $req->{'json'}{'files_info'}{'src'} .
-                                                        " " . $container_mount_point . "/" .
-                                                        $req->{'json'}{'files_info'}{'dst'});
+                                                                   $req->{'json'}{'files_info'}{'src'} .
+                                                                   " " . $container_mount_point . "/" .
+                                                                   $req->{'json'}{'files_info'}{'dst'});
                     if ($rc != 0) {
                         logger('info', "failed\n", 1);
                         command_logger('error', $command, $rc, $command_output);
@@ -760,10 +759,10 @@ foreach my $fs (@virtual_fs) {
     ($command, $command_output, $rc) = run_command("umount --verbose $container_mount_point/$fs");
     $umount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
     if ($rc != 0) {
-    logger('info', "failed\n", 2);
-    logger('error', $umount_cmd_log);
-    logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
-    exit 32;
+        logger('info', "failed\n", 2);
+        logger('error', $umount_cmd_log);
+        logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
+        exit 32;
     }
 }
 logger('info', "succeeded\n", 1);
