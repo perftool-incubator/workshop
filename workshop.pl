@@ -20,7 +20,7 @@ my %args;
 $args{'log-level'} = 'info';
 $args{'skip-update'} = 'false';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--target' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 
@@ -136,11 +136,11 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
-    } elsif ($opt_name eq "target") {
-        $args{'target'} = $opt_value;
+    } elsif ($opt_name eq "userenv") {
+        $args{'userenv'} = $opt_value;
 
-        if (! -e $args{'target'}) {
-            die("--target must be a valid file [not '$args{'target'}']");
+        if (! -e $args{'userenv'}) {
+            die("--userenv must be a valid file [not '$args{'userenv'}']");
         }
     } elsif ($opt_name eq "requirements") {
         if (! exists $args{'reqs'}) {
@@ -183,7 +183,7 @@ GetOptions("completions=s" => \&arg_handler,
            "log-level=s" => \&arg_handler,
            "requirements=s" => \&arg_handler,
            "skip-update=s" => \&arg_handler,
-           "target=s" => \&arg_handler,
+           "userenv=s" => \&arg_handler,
            "label=s" => \&arg_handler)
     or die("Error in command line arguments");
 
@@ -194,29 +194,29 @@ if (exists($args{'completions'})) {
     exit 0;
 }
 
-if (! exists $args{'target'}) {
-    logger('error', "You must provide --target!\n");
+if (! exists $args{'userenv'}) {
+    logger('error', "You must provide --userenv!\n");
     exit 1;
 }
 
-my $target_json;
+my $userenv_json;
 
-logger('info', "Loading target definition from '$args{'target'}'...\n");
+logger('info', "Loading userenv definition from '$args{'userenv'}'...\n");
 
-if (open(my $target_fh, "<", $args{'target'})) {
+if (open(my $userenv_fh, "<", $args{'userenv'})) {
     my $file_contents;
-    while(<$target_fh>) {
+    while(<$userenv_fh>) {
         $file_contents .= $_;
     }
 
-    $target_json = decode_json($file_contents);
+    $userenv_json = decode_json($file_contents);
 
-    close($target_fh);
+    close($userenv_fh);
 
     logger('info', "succeeded\n", 1);
 } else {
     logger('info', "failed\n", 1);
-    logger('error', "Could not open target file '$args{'target'}' for reading!\n");
+    logger('error', "Could not open userenv file '$args{'userenv'}' for reading!\n");
     exit 2;
 }
 
@@ -225,33 +225,33 @@ my %active_requirements;
 
 logger('info', "Processing requested requirements...\n");
 
-my $target_reqs = { 'name' => $args{'target'},
-                    'json' => { 'targets' => { $target_json->{'label'} => { 'packages' => [] } },
+my $userenv_reqs = { 'name' => $args{'userenv'},
+                    'json' => { 'userenvs' => { $userenv_json->{'label'} => { 'packages' => [] } },
                                 'packages' => {} } };
 
-if (exists($target_json->{'install'}{'packages'})) {
-    logger('info', "target requested packages...\n", 1);
+if (exists($userenv_json->{'install'}{'packages'})) {
+    logger('info', "userenv requested packages...\n", 1);
 
-    foreach my $pkg (@{$target_json->{'install'}{'packages'}}) {
-        push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
+    foreach my $pkg (@{$userenv_json->{'install'}{'packages'}}) {
+        push(@{$userenv_reqs->{'json'}{'userenvs'}{$userenv_json->{'label'}}{'packages'}}, $pkg);
 
-        $target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
+        $userenv_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
                                                      'distro_info' => { 'pkg_name' => $pkg } };
     }
 }
 
-if (exists($target_json->{'install'}{'groups'})) {
-    logger('info', "target requested package groups...\n", 1);
+if (exists($userenv_json->{'install'}{'groups'})) {
+    logger('info', "userenv requested package groups...\n", 1);
 
-    foreach my $pkg (@{$target_json->{'install'}{'groups'}}) {
-        push(@{$target_reqs->{'json'}{'targets'}{$target_json->{'label'}}{'packages'}}, $pkg);
+    foreach my $pkg (@{$userenv_json->{'install'}{'groups'}}) {
+        push(@{$userenv_reqs->{'json'}{'userenvs'}{$userenv_json->{'label'}}{'packages'}}, $pkg);
 
-        $target_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
+        $userenv_reqs->{'json'}{'packages'}{$pkg} = { 'type' => 'distro',
                                                      'distro_info' => { 'group_name' => $pkg } };
     }
 }
 
-push(@all_requirements, $target_reqs);
+push(@all_requirements, $userenv_reqs);
 
 foreach my $req (@{$args{'reqs'}}) {
     logger('info', "loading '$req'...\n",1);
@@ -279,40 +279,40 @@ $active_requirements{'hash'} = ();
 $active_requirements{'array'} = [];
 
 foreach my $tmp_req (@all_requirements) {
-    my $target_label;
+    my $userenv_label;
 
-    if (exists($tmp_req->{'json'}{'targets'}{$target_json->{'label'}})) {
-        $target_label = $target_json->{'label'};
-    } elsif (exists($tmp_req->{'json'}{'targets'}{'default'})) {
-        $target_label = 'default';
+    if (exists($tmp_req->{'json'}{'userenvs'}{$userenv_json->{'label'}})) {
+        $userenv_label = $userenv_json->{'label'};
+    } elsif (exists($tmp_req->{'json'}{'userenvs'}{'default'})) {
+        $userenv_label = 'default';
     } else {
         logger('info', "failed\n", 1);
-        logger('error', "Could not find appropriate target match in requirements '$tmp_req->{'name'}' for '$target_json->{'label'}'!\n");
+        logger('error', "Could not find appropriate userenv match in requirements '$tmp_req->{'name'}' for '$userenv_json->{'label'}'!\n");
         exit 22;
     }
 
-    for my $target_package (@{$tmp_req->{'json'}{'targets'}{$target_label}{'packages'}}) {
-        if (exists($active_requirements{'hash'}{$target_package})) {
-            if (($tmp_req->{'json'}{'packages'}{$target_package}{'type'} eq 'distro') &&
-                ($active_requirements{'hash'}{$target_package}{'requirement_type'} eq 'distro')) {
-                push(@{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}, $tmp_req->{'name'});
+    for my $userenv_package (@{$tmp_req->{'json'}{'userenvs'}{$userenv_label}{'packages'}}) {
+        if (exists($active_requirements{'hash'}{$userenv_package})) {
+            if (($tmp_req->{'json'}{'packages'}{$userenv_package}{'type'} eq 'distro') &&
+                ($active_requirements{'hash'}{$userenv_package}{'requirement_type'} eq 'distro')) {
+                push(@{$active_requirements{'hash'}{$userenv_package}{'requirement_sources'}}, $tmp_req->{'name'});
             } else {
                 logger('info', "failed\n", 1);
                 logger('debug', "All Requirements Hash:\n");
                 logger('debug', Dumper(\@all_requirements));
-                logger('error', "There is a target package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$target_package}{'type'}' and '" .
-                       join(',', @{$active_requirements{'hash'}{$target_package}{'requirement_sources'}}) .
-                       "' with type '$active_requirements{'hash'}{$target_package}{'requirement_type'}' for '$target_package'!\n");
+                logger('error', "There is a userenv package conflict between '$tmp_req->{'name'}' with type '$tmp_req->{'json'}{'packages'}{$userenv_package}{'type'}' and '" .
+                       join(',', @{$active_requirements{'hash'}{$userenv_package}{'requirement_sources'}}) .
+                       "' with type '$active_requirements{'hash'}{$userenv_package}{'requirement_type'}' for '$userenv_package'!\n");
                 exit 23;
             }
         } else {
-            $active_requirements{'hash'}{$target_package} = { 'requirement_sources' => [
+            $active_requirements{'hash'}{$userenv_package} = { 'requirement_sources' => [
                                                                   $tmp_req->{'name'}
                                                                   ],
-                                                              'requirement_type' => $tmp_req->{'json'}{'packages'}{$target_package}{'type'} };
+                                                              'requirement_type' => $tmp_req->{'json'}{'packages'}{$userenv_package}{'type'} };
 
-            push(@{$active_requirements{'array'}}, { 'label' => $target_package,
-                                                     'json' => $tmp_req->{'json'}{'packages'}{$target_package} });
+            push(@{$active_requirements{'array'}}, { 'label' => $userenv_package,
+                                                     'json' => $tmp_req->{'json'}{'packages'}{$userenv_package} });
         }
     }
 }
@@ -331,44 +331,44 @@ my $rc;
 
 my $container_mount_point;
 
-# acquire the target source
-($command, $command_output, $rc) = run_command("buildah images --json $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
+# acquire the userenv source
+($command, $command_output, $rc) = run_command("buildah images --json $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}");
 if ($rc == 0) {
-    logger('info', "Found $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'} locally\n");
+    logger('info', "Found $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'} locally\n");
     command_logger('verbose', $command, $rc, $command_output);
-    $target_json->{'source'}{'local_details'} = decode_json($command_output);
+    $userenv_json->{'source'}{'local_details'} = decode_json($command_output);
 } else {
     command_logger('verbose', $command, $rc, $command_output);
-    logger('info', "Could not find $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}, attempting to download...\n");
-    ($command, $command_output, $rc) = run_command("buildah pull --quiet $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
+    logger('info', "Could not find $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}, attempting to download...\n");
+    ($command, $command_output, $rc) = run_command("buildah pull --quiet $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}");
     if ($rc == 0) {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
 
         logger('info', "Querying for information about the image...\n");
-        ($command, $command_output, $rc) = run_command("buildah images --json $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
+        ($command, $command_output, $rc) = run_command("buildah images --json $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}");
         if ($rc == 0) {
             logger('info', "succeeded\n", 1);
             command_logger('verbose', $command, $rc, $command_output);
-            $target_json->{'source'}{'local_details'} = decode_json($command_output);
+            $userenv_json->{'source'}{'local_details'} = decode_json($command_output);
         } else {
             logger('info', "failed\n", 1);
             command_logger('error', $command, $rc, $command_output);
-            logger('error', "Failed to download/query $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
+            logger('error', "Failed to download/query $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}!\n");
             exit 3;
         }
     } else {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to download $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}!\n");
+        logger('error', "Failed to download $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}!\n");
         exit 4;
     }
 }
 
-logger('debug', "Target JSON:\n");
-logger('debug', Dumper($target_json));
+logger('debug', "Userenv JSON:\n");
+logger('debug', Dumper($userenv_json));
 
-my $tmp_container = $me . "_" . $target_json->{'label'};
+my $tmp_container = $me . "_" . $userenv_json->{'label'};
 if (defined $args{'label'}) {
     $tmp_container .= "_" . $args{'label'};
 }
@@ -419,13 +419,13 @@ if ($rc == 0) {
     command_logger('verbose', $command, $rc, $command_output);
 }
 
-# create a new container based on the target source
+# create a new container based on the userenv source
 logger('info', "Creating temporary container...\n");
-($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}");
+($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not create new container '$tmp_container' from '$target_json->{'source'}{'image'}:$target_json->{'source'}{'tag'}'!\n");
+    logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'source'}{'image'}:$userenv_json->{'source'}{'tag'}'!\n");
     exit 6;
 } else {
     logger('info', "succeeded\n", 1);
@@ -434,14 +434,14 @@ if ($rc != 0) {
 
 my $update_cmd = "";
 my $clean_cmd = "";
-if ($target_json->{'install'}{'manager'} eq "dnf") {
+if ($userenv_json->{'install'}{'manager'} eq "dnf") {
     $update_cmd = "dnf update --assumeyes";
     $clean_cmd = "dnf clean all";
-} elsif ($target_json->{'install'}{'manager'} eq "yum") {
+} elsif ($userenv_json->{'install'}{'manager'} eq "yum") {
     $update_cmd = "yum update --assumeyes";
     $clean_cmd = "yum clean all";
 } else {
-    logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
+    logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'install'}{'manager'}]\n");
     exit 23;
 }
 
@@ -558,13 +558,13 @@ if (opendir(NORMAL_ROOT, "/")) {
                     logger('info', "performing distro package installation...\n", 1);
 
                     my $install_cmd = "";
-                    if ($target_json->{'install'}{'manager'} eq 'dnf') {
+                    if ($userenv_json->{'install'}{'manager'} eq 'dnf') {
                         if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
                             $install_cmd = "dnf install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
                         } elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
                             $install_cmd = "dnf groupinstall --assumeyes " . $req->{'json'}{'distro_info'}{'group_name'};
                         }
-                    } elsif ($target_json->{'install'}{'manager'} eq 'yum') {
+                    } elsif ($userenv_json->{'install'}{'manager'} eq 'yum') {
                         if (exists($req->{'json'}{'distro_info'}{'pkg_name'})) {
                             $install_cmd = "yum install --assumeyes " . $req->{'json'}{'distro_info'}{'pkg_name'};
                         } elsif (exists($req->{'json'}{'distro_info'}{'group_name'})) {
@@ -572,7 +572,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                         }
                     } else {
                         logger('info', "failed\n", 2);
-                        logger('error', "Unsupported target package manager encountered [$target_json->{'install'}{'manager'}]\n");
+                        logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'install'}{'manager'}]\n");
                         exit 23;
                     }
 
