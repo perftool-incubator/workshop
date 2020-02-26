@@ -36,6 +36,67 @@ my $command_logger_fmt = "######################################################
     "COMMAND OUTPUT:\n\n%s\n" .
     "********************************************************************************\n";
 
+sub get_exit_code {
+    my ($exit_reason) = @_;
+
+    my %reasons = (
+        'success' => 0,
+        'no_userenv' => 1,
+        'json_validator_not_found' => 2,
+        'schema_not_found' => 3,
+        'userenv_failed_validation' => 4,
+        'failing_opening_userenv' => 5,
+        'requirement_failed_validation' => 6,
+        'failed_opening_requirement' => 7,
+        'userenv_missing' => 8,
+        'duplicate_requirements' => 9,
+        'requirement_conflict' => 10,
+        'image_query' => 11,
+        'image_origin_pull' => 12,
+        'old_container_cleanup' => 13,
+        'remove_existing_container' => 14,
+        'create_container' => 15,
+        'unsupported_package_manager' => 16,
+        'update_failed' => 17,
+        'update_cleanup' => 18,
+        'container_mount' => 19,
+        'virtual_fs_mount' => 20,
+        'resolve.conf_backup' => 21,
+        'resolv.conf_update' => 22,
+        'package_install' => 23,
+        'group_install' => 24,
+        'build_failed' => 25,
+        'chdir_failed' => 26,
+        'unpack_failed' => 27,
+        'unpack_dir_not_found' => 28,
+        'download_failed' => 29,
+        'command_run_failed' => 30,
+        'install_cleanup' => 31,
+        'chroot_escape_1' => 32,
+        'chroot_escape_2' => 33,
+        'chroot_escape_3' => 34,
+        'chroot_failed' => 35,
+        'directory_reference' => 36,
+        'local-copy_failed' => 37,
+        'copy_dst_missing' => 38,
+        'copy_src_missing' => 39,
+        'copy_type' => 40,
+        'virtual_fs_umount' => 41,
+        'resolve.conf_remove' => 42,
+        'resolve.conf_restore' => 43,
+        'container_umount' => 44,
+        'image_create' => 45,
+        'new_container_cleanup' => 46,
+        );
+
+    if (exists($reasons{$exit_reason})) {
+        return($reasons{$exit_reason});
+    } else {
+        logger('info', "Unknown exit code requested [$exit_reason]\n");
+        return(-1);
+    }
+}
+
 sub compare_requirement_definition {
     my ($a, $b) = @_;
 
@@ -283,12 +344,12 @@ logger('debug', "Argument Hash:\n");
 logger('debug', Dumper(\%args));
 
 if (exists($args{'completions'})) {
-    exit 0;
+    exit(get_exit_code('success'));
 }
 
 if (! exists $args{'userenv'}) {
     logger('error', "You must provide --userenv!\n");
-    exit 1;
+    exit(get_exit_code('no_userenv'));
 }
 
 my $userenv_json;
@@ -313,13 +374,13 @@ if ($perform_schema_validations) {
     if ($rc != 0) {
         $perform_schema_validations = 0;
         logger('error', "Unable to perform JSON input file schema validation because the json-validator could not be found!\n");
-        exit 43;
+        exit(get_exit_code('json_validator_not_found'));
     } else {
         my $dirname = dirname(__FILE__);
         $schema_location = $dirname . "/schema.json";
         if (! -e $schema_location) {
             logger('error', "Failed to locate schema.json (assumed location is '$schema_location')\n");
-            exit 40;
+            exit(get_exit_code('schema_not_found'));
         } else {
             logger('info', "Using '$schema_location' for JSON input file schema validation\n");
         }
@@ -335,7 +396,7 @@ if ($perform_schema_validations) {
         logger('info', "failed\n", 2);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "The supplied userenv definition '$args{'userenv'}' failed schema validation!\n");
-        exit 41;
+        exit(get_exit_code('userenv_failed_validation'));
     } else {
         logger('info', "succeeded\n", 2);
         command_logger('verbose', $command, $rc, $command_output);
@@ -358,7 +419,7 @@ if (open(my $userenv_fh, "<", $args{'userenv'})) {
 } else {
     logger('info', "failed\n", 2);
     logger('error', "Could not open userenv file '$args{'userenv'}' for reading!\n");
-    exit 2;
+    exit(get_exit_code('failing_opening_userenv'));
 }
 
 my @all_requirements;
@@ -390,7 +451,7 @@ foreach my $req (@{$args{'reqs'}}) {
             logger('info', "failed\n", 3);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "The supplied requirement definition '$req' failed schema validation!\n");
-            exit 42;
+            exit(get_exit_code('requirement_failed_validation'));
         } else {
             logger('info', "succeeded\n", 3);
             command_logger('verbose', $command, $rc, $command_output);
@@ -415,7 +476,7 @@ foreach my $req (@{$args{'reqs'}}) {
     } else {
         logger('info', "failed\n", 3);
         logger('error', "Failed to load requirement file '$req'!\n");
-        exit 21;
+        exit(get_exit_code('failed_opening_requirement'));
     }
 }
 
@@ -451,7 +512,7 @@ foreach my $tmp_req (@all_requirements) {
         if ($userenv_default_idx == -1) {
             logger('info', "failed\n", 2);
             logger('error', "Could not find appropriate userenv match in requirements '$tmp_req->{'name'}' for '$userenv_json->{'userenv'}{'label'}'!\n");
-            exit 22;
+            exit(get_exit_code('userenv_missing'));
         } else {
             $userenv_idx = $userenv_default_idx;
         }
@@ -464,7 +525,7 @@ foreach my $tmp_req (@all_requirements) {
             if (exists($local_requirements{$tmp_req->{'json'}{'requirements'}[$i]{'name'}})) {
                 logger('info', "failed\n", 2);
                 logger('error', "Found multiple requirement definitions for '$tmp_req->{'json'}{'requirements'}[$i]{'name'}' in '$tmp_req->{'filename'}'!\n");
-                exit 38;
+                exit(get_exit_code('duplicate_requirements'));
             } else {
                 $local_requirements{$tmp_req->{'json'}{'requirements'}[$i]{'name'}} = 1;
             }
@@ -493,7 +554,7 @@ foreach my $tmp_req (@all_requirements) {
                         logger('error', "Discovered a conflict between '$tmp_req->{'filename'}' and $conflicts for requirement '$req'!\n");
                         logger('debug', "'" . $tmp_req->{'filename'} . "':\n" . Dumper($tmp_req->{'json'}{'requirements'}[$i]) . "\n");
                         logger('debug', $conflicts . ":\n" . Dumper($active_requirements{'array'}[$active_requirements{'hash'}{$tmp_req->{'json'}{'requirements'}[$i]{'name'}}{'array_index'}]) . "\n");
-                        exit 39;
+                        exit(get_exit_code('requirement_conflict'));
                     } else {
                         push(@{$active_requirements{'hash'}{$tmp_req->{'json'}{'requirements'}[$i]{'name'}}{'sources'}}, $tmp_req->{'filename'});
                     }
@@ -546,13 +607,13 @@ if ($rc == 0) {
             logger('info', "failed\n", 2);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "Failed to download/query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
-            exit 3;
+            exit(get_exit_code('image_query'));
         }
     } else {
         logger('info', "failed\n", 2);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to download $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
-        exit 4;
+        exit(get_exit_code('image_origin_pull'));
     }
 }
 
@@ -578,7 +639,7 @@ if ($command_output !~ /null/) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Could not clean up old container '$tmp_container'!\n");
-        exit 5;
+        exit(get_exit_code('old_container_cleanup'));
     } else {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
@@ -600,7 +661,7 @@ if ($rc == 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Could not remove existing container image '$tmp_container'!\n");
-        exit 11;
+        exit(get_exit_code('remove_existing_container'));
     } else {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
@@ -617,7 +678,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'origin'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}'!\n");
-    exit 6;
+    exit(get_exit_code('create_container'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -633,7 +694,7 @@ if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
     $clean_cmd = "yum clean all";
 } else {
     logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
-    exit 23;
+    exit(get_exit_code('unsupported_package_manager'));
 }
 
 if ($args{'skip-update'} eq 'false') {
@@ -644,7 +705,7 @@ if ($args{'skip-update'} eq 'false') {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Updating the temporary container '$tmp_container' failed!\n");
-        exit 7;
+        exit(get_exit_code('update_failed'));
     } else {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
@@ -656,7 +717,7 @@ if ($args{'skip-update'} eq 'false') {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n");
-        exit 12;
+        exit(get_exit_code('update_cleanup'));
     } else {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
@@ -672,7 +733,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to mount the temporary container's filesystem!\n");
-    exit 13;
+    exit(get_exit_code('container_mount'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -691,7 +752,7 @@ foreach my $fs (@virtual_fs) {
         logger('info', "failed\n", 2);
         logger('error', $mount_cmd_log);
         logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
-        exit 31;
+        exit(get_exit_code('virtual_fs_mount'));
     }
 }
 logger('info', "succeeded\n", 1);
@@ -704,7 +765,7 @@ if (-e $container_mount_point . "/etc/resolv.conf") {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
-        exit 33;
+        exit(get_exit_code('resolve.conf_backup'));
     }
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -716,7 +777,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to copy /etc/resolv.conf to the temporary container!\n");
-    exit 34;
+    exit(get_exit_code('resolv.conf_update'));
 }
 logger('info', "succeeded\n", 1);
 command_logger('verbose', $command, $rc, $command_output);
@@ -762,7 +823,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
-                                exit 23;
+                                exit(get_exit_code('unsupported_package_manager'));
                             }
 
                             ($command, $command_output, $rc) = run_command("$install_cmd");
@@ -773,7 +834,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 logger('info', "failed [rc=$rc]\n", 4);
                                 command_logger('error', $command, $rc, $command_output);
                                 logger('error', "Failed to install package '$pkg'\n");
-                                exit 24;
+                                exit(get_exit_code('package_install'));
                             }
                         }
                     }
@@ -790,7 +851,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
-                                exit 23;
+                                exit(get_exit_code('unsupported_package_manager'));
                             }
 
                             ($command, $command_output, $rc) = run_command("$install_cmd");
@@ -801,7 +862,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 logger('info', "failed [rc=$rc]\n", 4);
                                 command_logger('error', $command, $rc, $command_output);
                                 logger('error', "Failed to install group '$grp'\n");
-                                exit 24;
+                                exit(get_exit_code('group_install'));
                             }
                         }
                     }
@@ -831,7 +892,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                                                 logger('info', "failed\n", 5);
                                                 logger('error', $build_cmd_log);
                                                 logger('error', "Build failed on command '$build_cmd'!\n");
-                                                exit 30;
+                                                exit(get_exit_code('build_failed'));
                                             }
                                         }
                                         logger('info', "succeeded\n", 3);
@@ -839,30 +900,30 @@ if (opendir(NORMAL_ROOT, "/")) {
                                     } else {
                                         logger('info', "failed\n", 3);
                                         logger('error', "Could not chdir to '$get_dir'!\n");
-                                        exit 29;
+                                        exit(get_exit_code('chdir_failed'));
                                     }
                                 } else {
                                     logger('info', "failed\n", 3);
                                     command_logger('error', $command, $rc, $command_output);
                                     logger('error', "Could not unpack source package!\n");
-                                    exit 29;
+                                    exit(get_exit_code('unpack_failed'));
                                 }
                             } else {
                                 logger('info', "failed\n", 3);
                                 command_logger('error', $command, $rc, $command_output);
                                 logger('error', "Could not get unpack directory!\n");
-                                exit 28;
+                                exit(get_exit_code('unpack_dir_not_found'));
                             }
                         } else {
                             logger('info', "failed\n", 3);
                             command_logger('error', $command, $rc, $command_output);
                             logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
-                            exit 27;
+                            exit(get_exit_code('download_failed'));
                         }
                     } else {
                         logger('info', "failed\n", 2);
                         logger('error', "Could not chdir to /root!\n");
-                        exit 26;
+                        exit(get_exit_code('chdir_failed'));
                     }
                 } elsif ($req->{'type'} eq 'manual') {
                     logger('info', "installing package via manually provided commands...\n", 2);
@@ -876,7 +937,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             logger('info', "failed [rc=$rc]\n", 4);
                             logger('error', $install_cmd_log);
                             logger('error', "Failed to run command '$cmd'\n");
-                            exit 25;
+                            exit(get_exit_code('command_run_failed'));
                         }
                     }
                     logger('info', "succeeded\n", 2);
@@ -891,7 +952,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                     logger('info', "failed\n", 1);
                     command_logger('error', $command, $rc, $command_output);
                     logger('error', "Cleaning up after distro package installation failed!\n");
-                    exit 26;
+                    exit(get_exit_code('install_cleanup'));
                 } else {
                     logger('info', "succeeded\n", 1);
                     command_logger('verbose', $command, $rc, $command_output);
@@ -903,29 +964,29 @@ if (opendir(NORMAL_ROOT, "/")) {
                 if (chroot(".")) {
                     if (!chdir($pwd)) {
                         logger('error', "Could not chdir back to the original path/pwd!\n");
-                        exit 20;
+                        exit(get_exit_code('chroot_escape_1'));
                     }
                 } else {
                     logger('error', "Could not chroot out of the chroot!\n");
-                    exit 19;
+                    exit(get_exit_code('chroot_escape_2'));
                 }
             } else {
                 logger('error', "Could not chdir to escape the chroot!\n");
-                exit 18;
+                exit(get_exit_code('chroot_escape_3'));
             }
         } else {
             logger('error', "Could not chdir to temporary container mount point [$container_mount_point]!\n");
-            exit 17;
+            exit(get_exit_code('chdir_failed'));
         }
     } else {
         logger('error', "Could not chroot to temporary container mount point [$container_mount_point]!\n");
-        exit 16;
+        exit(get_exit_code('chroot_failed'));
     }
 
     closedir(NORMAL_ROOT);
 } else {
     logger('error', "Could not get directory reference to '/'!\n");
-    exit 15;
+    exit(get_exit_code('directory_reference'));
 }
 
 # handle file copying requirements.  this must be done outside of the
@@ -951,7 +1012,7 @@ foreach my $req (@{$active_requirements{'array'}}) {
                             logger('info', "failed\n", 3);
                             command_logger('error', $command, $rc, $command_output);
                             logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
-                            exit 35;
+                            exit(get_exit_code('local-copy_failed'));
                         } else {
                             logger('info', "succeeded\n", 3);
                             command_logger('verbose', $command, $rc, $command_output);                        }
@@ -959,18 +1020,18 @@ foreach my $req (@{$active_requirements{'array'}}) {
                         logger('info', "failed\n", 3);
                         command_logger('error', $command, $rc, $command_output);
                         logger('error', "Destination '$file->{'dst'}' not defined!\n");
-                        exit 36;
+                        exit(get_exit_code('copy_dst_missing'));
                     }
                 } else {
                     logger('info', "failed\n", 3);
                     command_logger('error', $command, $rc, $command_output);
                     logger('error', "Local source file '$file->{'src'}' not found!\n");
-                    exit 36;
+                    exit(get_exit_code('copy_src_missing'));
                 }
             } else {
                 logger('info', "failed\n", 3);
                 logger('error', "File copy type '$file->{'type'}' is not supported!\n");
-                exit 36;
+                exit(get_exit_code('copy_type'));
             }
         }
     }
@@ -990,7 +1051,7 @@ foreach my $fs (@virtual_fs) {
         logger('info', "failed\n", 2);
         logger('error', $umount_cmd_log);
         logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
-        exit 32;
+        exit(get_exit_code('virtual_fs_umount'));
     }
 }
 logger('info', "succeeded\n", 1);
@@ -1002,7 +1063,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to remove /etc/resolv.conf from the temporary container!\n");
-    exit 34;
+    exit(get_exit_code('resolve.conf_remove'));
 }
 logger('info', "succeeded\n", 1);
 command_logger('verbose', $command, $rc, $command_output);
@@ -1014,7 +1075,7 @@ if (-e $container_mount_point . "/etc/resolv.conf." . $me) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to restore the temporary container's /etc/resolv.conf!\n");
-        exit 33;
+        exit(get_exit_code('resolve.conf_restore'));
     }
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -1027,7 +1088,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to unmount the temporary container's filesystem [$container_mount_point]!\n");
-    exit 14;
+    exit(get_exit_code('container_umount'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -1040,7 +1101,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to create new container image '$tmp_container'!\n");
-    exit 8;
+    exit(get_exit_code('image_create'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -1053,7 +1114,7 @@ if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to cleanup temporary container '$tmp_container'!\n");
-    exit 9;
+    exit(get_exit_code('new_container_cleanup'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -1065,10 +1126,10 @@ logger('info', "Creation of container image '$tmp_container' is complete.  Retri
 if ($rc == 0) {
     logger('info', "succeeded\n", 1);
     logger('info', "\n$command_output\n");
-    exit 0;
+    exit(get_exit_code('success'));
 } else {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Could not get container image information for '$tmp_container'!  Something must have gone wrong that I don't understand.\n");
-    exit 10;
+    exit(get_exit_code('image_query'));
 }
