@@ -11,6 +11,10 @@ use Scalar::Util qw(looks_like_number);
 use File::Basename;
 
 use Data::Dumper;
+$Data::Dumper::Sortkeys = 1;
+$Data::Dumper::Pair = ' : ';
+$Data::Dumper::Useqq = 1;
+$Data::Dumper::Indent = 1;
 
 # disable output buffering
 $|++;
