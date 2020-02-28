@@ -22,11 +22,13 @@ my %args;
 $args{'log-level'} = 'info';
 $args{'skip-update'} = 'false';
 $args{'skip-json-validation'} = 'false';
+$args{'force'} = 'false';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--json-validator', '--skip-json-validation' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--json-validator', '--skip-json-validation', '--force' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %skip_json_validation_options = ( 'true' => 1, 'false' => 1 );
+my %force_options = ( 'true' => 1, 'false' => 1 );
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -87,6 +89,11 @@ sub get_exit_code {
         'container_umount' => 44,
         'image_create' => 45,
         'new_container_cleanup' => 46,
+        'userenv_sha256' => 47,
+        'requirement_sha256' => 48,
+        'config_sha256' => 49,
+        'config_annotate_fail' => 50,
+        'get_config_version' => 51
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -267,6 +274,11 @@ sub arg_handler {
                 print "$key ";
             }
             print "\n";
+        } elsif ($opt_value eq '--force') {
+            foreach my $key (sort (keys %force_options)) {
+                print "$key ";
+            }
+            print "\n";
         } elsif ($opt_value eq '--skip-json-validations') {
             foreach my $key (sort (keys %skip_json_validation_options)) {
                 print "$key ";
@@ -296,6 +308,12 @@ sub arg_handler {
             $args{'skip-update'} = $opt_value;
         } else {
             die("--skip-update must be one of 'true' or 'false' [not '$opt_value']");
+        }
+    } elsif ($opt_name eq "force") {
+        if (exists ($force_options{$opt_value})) {
+            $args{'force'} = $opt_value;
+        } else {
+            die("--force must be one of 'true' or 'false' [not '$opt_value']");
         }
     } elsif ($opt_name eq "log-level") {
         if (exists($log_levels{$opt_value})) {
@@ -334,6 +352,7 @@ GetOptions("completions=s" => \&arg_handler,
            "log-level=s" => \&arg_handler,
            "requirements=s" => \&arg_handler,
            "skip-update=s" => \&arg_handler,
+           "force=s" => \&arg_handler,
            "userenv=s" => \&arg_handler,
            "json-validator=s" => \&arg_handler,
            "skip-json-validation=s" => \&arg_handler,
@@ -415,15 +434,34 @@ if (open(my $userenv_fh, "<", $args{'userenv'})) {
     close($userenv_fh);
 
     logger('info', "succeeded\n", 2);
-    logger('debug', Dumper($userenv_json));
 } else {
     logger('info', "failed\n", 2);
     logger('error', "Could not open userenv file '$args{'userenv'}' for reading!\n");
     exit(get_exit_code('failing_opening_userenv'));
 }
 
+logger('info', "calculating sha256...\n", 1);
+($command, $command_output, $rc) = run_command("sha256sum $args{'userenv'}");
+if ($rc != 0) {
+    logger('info', "failed\n", 2);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Could not acquire sha256 sum for userenv definition '$args{'userenv'}'!\n");
+    exit(get_exit_code('userenv_sha256'));
+} else {
+    logger('info', "succeeded\n", 2);
+    command_logger('verbose', $command, $rc, $command_output);
+    my @array = split(/\s+/, $command_output);
+    $userenv_json->{'sha256'} = $array[0];
+}
+
+logger('debug', "Userenv Hash:\n");
+logger('debug', Dumper($userenv_json));
+
 my @all_requirements;
 my %active_requirements;
+my @checksums;
+
+push(@checksums, $userenv_json->{'sha256'});
 
 logger('info', "Loading requested requirements...\n");
 
@@ -458,6 +496,8 @@ foreach my $req (@{$args{'reqs'}}) {
         }
     }
 
+    my $tmp_req = {};
+
     logger('info', "importing JSON...\n", 2);
     if (open(my $req_fh, "<", $req)) {
         my $file_contents;
@@ -465,10 +505,8 @@ foreach my $req (@{$args{'reqs'}}) {
             $file_contents .= $_;
         }
 
-        my $tmp_req = { 'filename' => $req,
-                        'json' => decode_json($file_contents) };
-
-        push(@all_requirements, $tmp_req);
+        $tmp_req->{'filename'} = $req;
+        $tmp_req->{'json'} = decode_json($file_contents);
 
         close($req_fh);
 
@@ -478,6 +516,23 @@ foreach my $req (@{$args{'reqs'}}) {
         logger('error', "Failed to load requirement file '$req'!\n");
         exit(get_exit_code('failed_opening_requirement'));
     }
+
+    logger('info', "calculating sha256...\n", 1);
+    ($command, $command_output, $rc) = run_command("sha256sum $req");
+    if ($rc != 0) {
+        logger('info', "failed\n", 2);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Could not acquire sha256 sum for requirement definition '$req'!\n");
+        exit(get_exit_code('requirement_sha256'));
+    } else {
+        logger('info', "succeeded\n", 2);
+        command_logger('verbose', $command, $rc, $command_output);
+        my @array = split(/\s+/, $command_output);
+        $tmp_req->{'sha256'} = $array[0];
+        push(@checksums, $array[0]);
+    }
+
+    push(@all_requirements, $tmp_req);
 }
 
 $active_requirements{'hash'} = ();
@@ -574,7 +629,6 @@ foreach my $tmp_req (@all_requirements) {
     logger('info', "succeeded\n", 2);
 }
 
-
 logger('debug', "All Requirements Hash:\n");
 logger('debug', Dumper(\@all_requirements));
 logger('debug', "Active Requirements Hash:\n");
@@ -620,6 +674,51 @@ if ($rc == 0) {
 logger('debug', "Userenv JSON:\n");
 logger('debug', Dumper($userenv_json));
 
+my $config_checksum = "";
+
+logger('info', "Building image checksum...\n");
+
+if ($args{'skip-update'} eq 'false') {
+    # since we can't really know what happens when we do a distro
+    # update, add a checksum to the list that cannot be reproduced.
+    # this will cause an image rebuild to always happen when images
+    # that have distro updates are being considered.
+
+    logger('info', "obtaining update checksum...\n", 1);
+    ($command, $command_output, $rc) = run_command("uuidgen | sha256sum");
+    if ($rc != 0) {
+        logger('info', "failed\n", 2);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Could not create sha256 update checksum!\n");
+        exit(get_exit_code('requirement_sha256'));
+    } else {
+        logger('info', "succeeded\n", 2);
+        command_logger('verbose', $command, $rc, $command_output);
+        my @array = split(/\s+/, $command_output);
+        push(@checksums, $array[0]);
+    }
+}
+
+# add the base image checksum to the list of checksums
+push(@checksums, $userenv_json->{'userenv'}{'origin'}{'local_details'}[0]{'digest'});
+
+logger('info', "creating image checksum...\n", 1);
+($command, $command_output, $rc) = run_command("echo '" . join(' ', @checksums) . "' | sha256sum");
+if ($rc != 0) {
+    logger('info', "failed\n", 2);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Could not create sha256 config checksum!\n");
+    exit(get_exit_code('config_sha256'));
+} else {
+    logger('info', "succeeded\n", 2);
+    command_logger('verbose', $command, $rc, $command_output);
+    my @array = split(/\s+/, $command_output);
+    $config_checksum = $array[0];
+}
+
+logger('debug', "Checksum Array:\n");
+logger('debug', Dumper(\@checksums));
+
 my $tmp_container = $me . "_" . $userenv_json->{'userenv'}{'name'};
 if (defined $args{'label'}) {
     $tmp_container .= "_" . $args{'label'};
@@ -655,6 +754,36 @@ logger('info', "Checking if container image already exists...\n");
 if ($rc == 0) {
     logger('info', "found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
+
+    logger('info', "Checking if the existing container image config version is a match...\n");
+    logger('info', "getting config version from image...\n", 1);
+    ($command, $command_output, $rc) = run_command("buildah inspect --type image --format '{{.ImageAnnotations.Workshop_Config_Version}}' $tmp_container");
+    if ($rc != 0) {
+        logger('info', "failed\n", 2);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Could not obtain container config version information from container image '$tmp_container'!\n");
+        exit(get_exit_code('get_config_version'));
+    } else {
+        logger('info', "succeeded\n", 2);
+        command_logger('verbose', $command, $rc, $command_output);
+
+        chomp($command_output);
+
+        logger('info', "comparing config versions...\n", 1);
+        if ($command_output eq $config_checksum) {
+            logger('info', "match found\n", 2);
+            if ($args{'force'} eq 'false') {
+                logger('info', "Exiting due to config version match -- the container image is already ready\n");
+                logger('info', "To force rebuild of the container image, rerun with '--force true'.\n");
+                exit(get_exit_code('success'));
+            } else {
+                logger('info', "Force rebuild requested, ignoring config version match\n");
+            }
+        } else {
+            logger('info', "match not found\n", 2);
+        }
+    }
+
     logger('info', "Removing existing container image that I am about to replace [$tmp_container]...\n");
     ($command, $command_output, $rc) = run_command("buildah rmi $tmp_container");
     if ($rc != 0) {
@@ -1089,6 +1218,19 @@ if ($rc != 0) {
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to unmount the temporary container's filesystem [$container_mount_point]!\n");
     exit(get_exit_code('container_umount'));
+} else {
+    logger('info', "succeeded\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+}
+
+# add version information to new container image
+logger('info', "Adding config version information to the temporary container...\n");
+($command, $command_output, $rc) = run_command("buildah config --annotation Workshop_Config_Version=$config_checksum $tmp_container");
+if ($rc != 0) {
+    logger('info', "failed\n", 1);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Failed to add version information to the temporary container '$tmp_container' using the config checksum '$config_checksum'!\n");
+    exit(get_exit_code('config_annotate_fail'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
