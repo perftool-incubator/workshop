@@ -96,11 +96,8 @@ sub get_exit_code {
         'container_umount' => 44,
         'image_create' => 45,
         'new_container_cleanup' => 46,
-        'userenv_sha256' => 47,
-        'requirement_sha256' => 48,
-        'config_sha256' => 49,
-        'config_annotate_fail' => 50,
-        'get_config_version' => 51
+        'config_annotate_fail' => 47,
+        'get_config_version' => 48
         );
 
     if (exists($reasons{$exit_reason})) {
