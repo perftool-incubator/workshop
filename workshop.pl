@@ -695,29 +695,7 @@ if (defined $args{'label'}) {
     $tmp_container .= "_" . $args{'label'};
 }
 
-# make sure there isn't an old container hanging around
-logger('info', "Checking for stale container presence...\n");
-($command, $command_output, $rc) = run_command("buildah containers --filter name=$tmp_container --json");
-if ($command_output !~ /null/) {
-    logger('info', "found\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
-
-    # need to clean up an old container
-    logger('info', "Cleaning up old container...\n");
-    ($command, $command_output, $rc) = run_command("buildah rm $tmp_container");
-    if ($rc != 0) {
-        logger('info', "failed\n", 1);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Could not clean up old container '$tmp_container'!\n");
-        exit(get_exit_code('old_container_cleanup'));
-    } else {
-        logger('info', "succeeded\n", 1);
-        command_logger('verbose', $command, $rc, $command_output);
-    }
-} else {
-    logger('info', "not found\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
-}
+my $remove_image = 0;
 
 # cleanup an existing container image that we are going to replace, if it exists
 logger('info', "Checking if container image already exists...\n");
@@ -755,6 +733,52 @@ if ($rc == 0) {
         }
     }
 
+    $remove_image = 1;
+} else {
+    logger('info', "not found\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+}
+
+# make sure there isn't an old container hanging around
+logger('info', "Checking for stale container presence...\n");
+($command, $command_output, $rc) = run_command("buildah containers --filter name=$tmp_container --json");
+if ($command_output !~ /null/) {
+    my $tmp_json = decode_json($command_output);
+
+    my $found = 0;
+    foreach my $container (@{$tmp_json}) {
+        if ($container->{'containername'} eq $tmp_container) {
+            $found = 1;
+            last;
+        }
+    }
+
+    if ($found) {
+        logger('info', "found\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
+
+        # need to clean up an old container
+        logger('info', "Cleaning up old container...\n");
+        ($command, $command_output, $rc) = run_command("buildah rm $tmp_container");
+        if ($rc != 0) {
+            logger('info', "failed\n", 1);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Could not clean up old container '$tmp_container'!\n");
+            exit(get_exit_code('old_container_cleanup'));
+        } else {
+            logger('info', "succeeded\n", 1);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    } else {
+        logger('info', "not found\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
+    }
+} else {
+    logger('info', "not found\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+}
+
+if ($remove_image) {
     logger('info', "Removing existing container image that I am about to replace [$tmp_container]...\n");
     ($command, $command_output, $rc) = run_command("buildah rmi $tmp_container");
     if ($rc != 0) {
@@ -766,9 +790,6 @@ if ($rc == 0) {
         logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
     }
-} else {
-    logger('info', "not found\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
 }
 
 # create a new container based on the userenv source
