@@ -9,6 +9,9 @@ use Getopt::Long;
 use JSON;
 use Scalar::Util qw(looks_like_number);
 use File::Basename;
+use Digest::SHA qw(sha256_hex);
+use Data::UUID;
+my $uuid = Data::UUID->new;
 
 use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
@@ -445,18 +448,8 @@ if (open(my $userenv_fh, "<", $args{'userenv'})) {
 }
 
 logger('info', "calculating sha256...\n", 1);
-($command, $command_output, $rc) = run_command("sha256sum $args{'userenv'}");
-if ($rc != 0) {
-    logger('info', "failed\n", 2);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not acquire sha256 sum for userenv definition '$args{'userenv'}'!\n");
-    exit(get_exit_code('userenv_sha256'));
-} else {
-    logger('info', "succeeded\n", 2);
-    command_logger('verbose', $command, $rc, $command_output);
-    my @array = split(/\s+/, $command_output);
-    $userenv_json->{'sha256'} = $array[0];
-}
+$userenv_json->{'sha256'} = sha256_hex(Dumper($userenv_json));
+logger('info', "succeeded\n", 2);
 
 logger('debug', "Userenv Hash:\n");
 logger('debug', Dumper($userenv_json));
@@ -519,21 +512,6 @@ foreach my $req (@{$args{'reqs'}}) {
         logger('info', "failed\n", 3);
         logger('error', "Failed to load requirement file '$req'!\n");
         exit(get_exit_code('failed_opening_requirement'));
-    }
-
-    logger('info', "calculating sha256...\n", 1);
-    ($command, $command_output, $rc) = run_command("sha256sum $req");
-    if ($rc != 0) {
-        logger('info', "failed\n", 2);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Could not acquire sha256 sum for requirement definition '$req'!\n");
-        exit(get_exit_code('requirement_sha256'));
-    } else {
-        logger('info', "succeeded\n", 2);
-        command_logger('verbose', $command, $rc, $command_output);
-        my @array = split(/\s+/, $command_output);
-        $tmp_req->{'sha256'} = $array[0];
-        push(@checksums, $array[0]);
     }
 
     push(@all_requirements, $tmp_req);
@@ -633,6 +611,13 @@ foreach my $tmp_req (@all_requirements) {
     logger('info', "succeeded\n", 2);
 }
 
+for (my $i=0; $i<scalar(@{$active_requirements{'array'}}); $i++) {
+    my $digest = sha256_hex(Dumper($active_requirements{'array'}[$i]));
+
+    $active_requirements{'array'}[$i]{'sha256'} = $digest;
+    push(@checksums, $digest);
+}
+
 logger('debug', "All Requirements Hash:\n");
 logger('debug', Dumper(\@all_requirements));
 logger('debug', "Active Requirements Hash:\n");
@@ -689,36 +674,21 @@ if ($args{'skip-update'} eq 'false') {
     # that have distro updates are being considered.
 
     logger('info', "obtaining update checksum...\n", 1);
-    ($command, $command_output, $rc) = run_command("uuidgen | sha256sum");
-    if ($rc != 0) {
-        logger('info', "failed\n", 2);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Could not create sha256 update checksum!\n");
-        exit(get_exit_code('requirement_sha256'));
-    } else {
-        logger('info', "succeeded\n", 2);
-        command_logger('verbose', $command, $rc, $command_output);
-        my @array = split(/\s+/, $command_output);
-        push(@checksums, $array[0]);
-    }
+    my $digest = sha256_hex($uuid->create_str());
+    push(@checksums, $digest);
+    logger('info', "succeeded\n", 2);
+    logger('debug', "The sha256 for updating the image is '$digest'\n");
 }
 
 # add the base image checksum to the list of checksums
-push(@checksums, $userenv_json->{'userenv'}{'origin'}{'local_details'}[0]{'digest'});
+my $digest = $userenv_json->{'userenv'}{'origin'}{'local_details'}[0]{'digest'};
+$digest =~ s/^sha256://;
+push(@checksums, $digest);
 
 logger('info', "creating image checksum...\n", 1);
-($command, $command_output, $rc) = run_command("echo '" . join(' ', @checksums) . "' | sha256sum");
-if ($rc != 0) {
-    logger('info', "failed\n", 2);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not create sha256 config checksum!\n");
-    exit(get_exit_code('config_sha256'));
-} else {
-    logger('info', "succeeded\n", 2);
-    command_logger('verbose', $command, $rc, $command_output);
-    my @array = split(/\s+/, $command_output);
-    $config_checksum = $array[0];
-}
+$config_checksum = sha256_hex(join(' ', @checksums));
+logger('info', "succeeded\n", 2);
+logger('debug', "The sha256 for the image configuration is '$config_checksum'\n");
 
 logger('debug', "Checksum Array:\n");
 logger('debug', Dumper(\@checksums));
