@@ -10,6 +10,8 @@ use JSON;
 use Scalar::Util qw(looks_like_number);
 use File::Basename;
 use Digest::SHA qw(sha256_hex);
+use Coro;
+
 use Data::UUID;
 my $uuid = Data::UUID->new;
 
@@ -44,6 +46,14 @@ my $command_logger_fmt = "######################################################
     "RETURN CODE:     %d\n" .
     "COMMAND OUTPUT:\n\n%s\n" .
     "********************************************************************************\n";
+
+sub quit_files_coro {
+    my ($present, $channel) = @_;
+
+    if ($present) {
+        $channel->put('quit');
+    }
+}
 
 sub get_exit_code {
     my ($exit_reason) = @_;
@@ -97,7 +107,8 @@ sub get_exit_code {
         'image_create' => 45,
         'new_container_cleanup' => 46,
         'config_annotate_fail' => 47,
-        'get_config_version' => 48
+        'get_config_version' => 48,
+        'coro_failure' => 49
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -459,6 +470,7 @@ push(@checksums, $userenv_json->{'sha256'});
 
 logger('info', "Loading requested requirements...\n");
 
+logger('info', "'$args{'userenv'}'...\n", 1);
 my $userenv_reqs = { 'filename' => $args{'userenv'},
                     'json' => { 'userenvs' => [
                                     {
@@ -471,6 +483,7 @@ my $userenv_reqs = { 'filename' => $args{'userenv'},
 foreach my $req (@{$userenv_reqs->{'json'}{'requirements'}}) {
     push(@{$userenv_reqs->{'json'}{'userenvs'}[0]{'requirements'}}, $req->{'name'});
 }
+logger('info', "succeeded\n", 2);
 push(@all_requirements, $userenv_reqs);
 
 foreach my $req (@{$args{'reqs'}}) {
@@ -608,10 +621,17 @@ foreach my $tmp_req (@all_requirements) {
     logger('info', "succeeded\n", 2);
 }
 
+my $files_requirements_present = 0;
+
 for (my $i=0; $i<scalar(@{$active_requirements{'array'}}); $i++) {
+    if ($active_requirements{'array'}[$i]{'type'} eq 'files') {
+        $files_requirements_present = 1;
+    }
+
     my $digest = sha256_hex(Dumper($active_requirements{'array'}[$i]));
 
     $active_requirements{'array'}[$i]{'sha256'} = $digest;
+    $active_requirements{'array'}[$i]{'index'} = $i;
     push(@checksums, $digest);
 }
 
@@ -914,6 +934,98 @@ if (opendir(NORMAL_ROOT, "/")) {
     ($command, $pwd, $rc) = run_command("pwd");
     chomp($pwd);
 
+    my $files_channel;
+    my $return_channel;
+    if ($files_requirements_present) {
+        $files_channel = new Coro::Channel(1);
+        $return_channel = new Coro::Channel(1);
+
+        async {
+            my $dir_handle;
+            my $cur_pwd;
+
+            Coro::on_enter {
+                ($command, $cur_pwd, $rc) = run_command("pwd");
+                chomp($cur_pwd);
+
+                if (!chdir(*NORMAL_ROOT)) {
+                    logger('error', "Failed to chdir to root during async/coro enter!\n");
+                    $return_channel->put(get_exit_code('coro_failure'));
+                }
+                if (!chroot(".")) {
+                    logger('error', "Failed to chroot to '.' during async/coro enter!\n");
+                    $return_channel->put(get_exit_code('coro_failure'));
+                }
+                if (!chdir($pwd)) {
+                    logger('error', "Failed to chdir to previous working directory '$pwd' during async/coro enter!\n");
+                    $return_channel->put(get_exit_code('coro_failure'));
+                }
+            };
+
+            Coro::on_leave {
+                if (!chroot($container_mount_point)) {
+                    logger('error', "Failed to chroot back to the container mount point during async/coro exit!\n");
+                    $return_channel->put(get_exit_code('coro_failure'));
+                }
+                if (!chdir($cur_pwd)) {
+                    logger('error', "Failed to chdir to previous working directory '$cur_pwd' during async/coro exit!\n");
+                    $return_channel->put(get_exit_code('coro_failure'));
+                }
+            };
+
+            my $msg = '';
+
+            while($msg ne 'quit') {
+                $msg = $files_channel->get;
+
+                if ($msg ne 'quit') {
+                    my $req = $active_requirements{'array'}[$msg];
+                    my $command;
+                    my $command_output;
+                    my $rc;
+
+                    foreach my $file (@{$req->{'files_info'}{'files'}}) {
+                        logger('info', "copying '$file->{'src'}'...\n", 2);
+                        if ($file->{'type'} eq 'local-copy') {
+                            if (-e $file->{'src'}) {
+                                if (exists($file->{'dst'})) {
+                                    ($command, $command_output, $rc) = run_command("/bin/cp -LR " .
+                                                                                   $file->{'src'} .
+                                                                                   " " . $container_mount_point . "/" .
+                                                                                   $file->{'dst'});
+                                    if ($rc != 0) {
+                                        logger('info', "failed\n", 3);
+                                        command_logger('error', $command, $rc, $command_output);
+                                        logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
+                                        $return_channel->put(get_exit_code('local-copy_failed'));
+                                    } else {
+                                        logger('info', "succeeded\n", 3);
+                                        command_logger('verbose', $command, $rc, $command_output);
+                                    }
+                                } else {
+                                    logger('info', "failed\n", 3);
+                                    command_logger('error', $command, $rc, $command_output);
+                                    logger('error', "Destination '$file->{'dst'}' not defined!\n");
+                                    $return_channel->put(get_exit_code('copy_dst_missing'));
+                                }
+                            } else {
+                                logger('info', "failed\n", 3);
+                                command_logger('error', $command, $rc, $command_output);
+                                logger('error', "Local source file '$file->{'src'}' not found!\n");
+                                $return_channel->put(get_exit_code('copy_src_missing'));
+                            }
+                        } else {
+                            logger('info', "failed\n", 3);
+                            logger('error', "File copy type '$file->{'type'}' is not supported!\n");
+                            $return_channel->put(get_exit_code('copy_type'));
+                        }
+                    }
+                }
+                $return_channel->put('go');
+            }
+        };
+    }
+
     # jump into the container image
     if (chroot($container_mount_point)) {
         if (chdir("/root")) {
@@ -926,7 +1038,11 @@ if (opendir(NORMAL_ROOT, "/")) {
                 logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
 
                 if ($req->{'type'} eq 'files') {
-                    logger('info', "deferring due to type 'files'\n", 2);
+                    $files_channel->put($req->{'index'});
+                    my $msg = $return_channel->get;
+                    if ($msg ne 'go') {
+                        exit($msg);
+                    }
                 } elsif ($req->{'type'} eq 'distro') {
                     $distro_installs = 1;
 
@@ -944,6 +1060,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
+                                quit_files_coro($files_requirements_present, $files_channel);
                                 exit(get_exit_code('unsupported_package_manager'));
                             }
 
@@ -955,6 +1072,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 logger('info', "failed [rc=$rc]\n", 4);
                                 command_logger('error', $command, $rc, $command_output);
                                 logger('error', "Failed to install package '$pkg'\n");
+                                quit_files_coro($files_requirements_present, $files_channel);
                                 exit(get_exit_code('package_install'));
                             }
                         }
@@ -972,6 +1090,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
+                                quit_files_coro($files_requirements_present, $files_channel);
                                 exit(get_exit_code('unsupported_package_manager'));
                             }
 
@@ -983,6 +1102,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 logger('info', "failed [rc=$rc]\n", 4);
                                 command_logger('error', $command, $rc, $command_output);
                                 logger('error', "Failed to install group '$grp'\n");
+                                quit_files_coro($files_requirements_present, $files_channel);
                                 exit(get_exit_code('group_install'));
                             }
                         }
@@ -1013,6 +1133,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                                                 logger('info', "failed\n", 5);
                                                 logger('error', $build_cmd_log);
                                                 logger('error', "Build failed on command '$build_cmd'!\n");
+                                                quit_files_coro($files_requirements_present, $files_channel);
                                                 exit(get_exit_code('build_failed'));
                                             }
                                         }
@@ -1021,29 +1142,34 @@ if (opendir(NORMAL_ROOT, "/")) {
                                     } else {
                                         logger('info', "failed\n", 3);
                                         logger('error', "Could not chdir to '$get_dir'!\n");
+                                        quit_files_coro($files_requirements_present, $files_channel);
                                         exit(get_exit_code('chdir_failed'));
                                     }
                                 } else {
                                     logger('info', "failed\n", 3);
                                     command_logger('error', $command, $rc, $command_output);
                                     logger('error', "Could not unpack source package!\n");
+                                    quit_files_coro($files_requirements_present, $files_channel);
                                     exit(get_exit_code('unpack_failed'));
                                 }
                             } else {
                                 logger('info', "failed\n", 3);
                                 command_logger('error', $command, $rc, $command_output);
                                 logger('error', "Could not get unpack directory!\n");
+                                quit_files_coro($files_requirements_present, $files_channel);
                                 exit(get_exit_code('unpack_dir_not_found'));
                             }
                         } else {
                             logger('info', "failed\n", 3);
                             command_logger('error', $command, $rc, $command_output);
                             logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
+                            quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('download_failed'));
                         }
                     } else {
                         logger('info', "failed\n", 2);
                         logger('error', "Could not chdir to /root!\n");
+                        quit_files_coro($files_requirements_present, $files_channel);
                         exit(get_exit_code('chdir_failed'));
                     }
                 } elsif ($req->{'type'} eq 'manual') {
@@ -1058,6 +1184,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             logger('info', "failed [rc=$rc]\n", 4);
                             logger('error', $install_cmd_log);
                             logger('error', "Failed to run command '$cmd'\n");
+                            quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('command_run_failed'));
                         }
                     }
@@ -1073,12 +1200,15 @@ if (opendir(NORMAL_ROOT, "/")) {
                     logger('info', "failed\n", 1);
                     command_logger('error', $command, $rc, $command_output);
                     logger('error', "Cleaning up after distro package installation failed!\n");
+                    quit_files_coro($files_requirements_present, $files_channel);
                     exit(get_exit_code('install_cleanup'));
                 } else {
                     logger('info', "succeeded\n", 1);
                     command_logger('verbose', $command, $rc, $command_output);
                 }
             }
+
+            quit_files_coro($files_requirements_present, $files_channel);
 
             # break out of the chroot and return to the old path/pwd
             if (chdir(*NORMAL_ROOT)) {
@@ -1097,10 +1227,12 @@ if (opendir(NORMAL_ROOT, "/")) {
             }
         } else {
             logger('error', "Could not chdir to temporary container mount point [$container_mount_point]!\n");
+            quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('chdir_failed'));
         }
     } else {
         logger('error', "Could not chroot to temporary container mount point [$container_mount_point]!\n");
+        quit_files_coro($files_requirements_present, $files_channel);
         exit(get_exit_code('chroot_failed'));
     }
 
@@ -1108,57 +1240,6 @@ if (opendir(NORMAL_ROOT, "/")) {
 } else {
     logger('error', "Could not get directory reference to '/'!\n");
     exit(get_exit_code('directory_reference'));
-}
-
-# handle file copying requirements.  this must be done outside of the
-# chroot so that the source files can be accessed.
-logger('info', "Processing deferred file copy requirements...\n");
-my $file_copies_found = 0;
-foreach my $req (@{$active_requirements{'array'}}) {
-    if ($req->{'type'} eq 'files') {
-        $file_copies_found += 1;
-
-        logger('info', "Copying files into the temporary container for '$req->{'name'}'...\n", 1);
-
-        foreach my $file (@{$req->{'files_info'}{'files'}}) {
-            logger('info', "copying '$file->{'src'}'...\n", 2);
-            if ($file->{'type'} eq 'local-copy') {
-                if (-e $file->{'src'}) {
-                    if (exists($file->{'dst'})) {
-                        ($command, $command_output, $rc) = run_command("/bin/cp -LR " .
-                                                                       $file->{'src'} .
-                                                                       " " . $container_mount_point . "/" .
-                                                                       $file->{'dst'});
-                        if ($rc != 0) {
-                            logger('info', "failed\n", 3);
-                            command_logger('error', $command, $rc, $command_output);
-                            logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
-                            exit(get_exit_code('local-copy_failed'));
-                        } else {
-                            logger('info', "succeeded\n", 3);
-                            command_logger('verbose', $command, $rc, $command_output);                        }
-                    } else {
-                        logger('info', "failed\n", 3);
-                        command_logger('error', $command, $rc, $command_output);
-                        logger('error', "Destination '$file->{'dst'}' not defined!\n");
-                        exit(get_exit_code('copy_dst_missing'));
-                    }
-                } else {
-                    logger('info', "failed\n", 3);
-                    command_logger('error', $command, $rc, $command_output);
-                    logger('error', "Local source file '$file->{'src'}' not found!\n");
-                    exit(get_exit_code('copy_src_missing'));
-                }
-            } else {
-                logger('info', "failed\n", 3);
-                logger('error', "File copy type '$file->{'type'}' is not supported!\n");
-                exit(get_exit_code('copy_type'));
-            }
-        }
-    }
-}
-if ($file_copies_found == 0) {
-    logger('info', "none found\n", 1);
 }
 
 # unmount virtual file systems that are bind mounted
