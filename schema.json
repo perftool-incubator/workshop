@@ -9,7 +9,7 @@
 		"schema": {
 		    "version": {
 			"allowed": [
-			    "2020.02.23"
+			    "2020.03.02"
 			],
 			"required": true
 		    }
@@ -243,12 +243,6 @@
 			    "schema": {
 				"type": "dict",
 				"schema": {
-				    "type": {
-					"allowed": [
-					    "local-copy"
-					],
-					"required": true
-				    },
 				    "src": {
 					"type": "string",
 					"empty": false,
