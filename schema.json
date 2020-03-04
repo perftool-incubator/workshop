@@ -1,0 +1,264 @@
+{
+    "workshop": {
+	"type": "dict",
+	"required": true,
+	"schema": {
+	    "schema": {
+		"type": "dict",
+		"required": true,
+		"schema": {
+		    "version": {
+			"allowed": [
+			    "2020.03.02"
+			],
+			"required": true
+		    }
+		}
+	    }
+	}
+    },
+    "userenv": {
+	"type": "dict",
+	"required": true,
+	"excludes": "userenvs",
+	"schema": {
+	    "name": {
+		"type": "string",
+		"empty": false,
+		"required": true
+	    },
+	    "label": {
+		"type": "string",
+		"empty": false,
+		"required": true
+	    },
+	    "origin": {
+		"type": "dict",
+		"required": true,
+		"schema": {
+		    "image": {
+			"type": "string",
+			"empty": false,
+			"required": true
+		    },
+		    "tag": {
+			"type": "string",
+			"empty": false,
+			"required": true
+		    }
+		}
+	    },
+	    "properties": {
+		"type": "dict",
+		"required": true,
+		"schema": {
+		    "packages": {
+			"type": "dict",
+			"required": true,
+			"schema": {
+			    "type": {
+				"type": "string",
+				"empty": false,
+				"required": true
+			    },
+			    "manager": {
+				"type": "string",
+				"empty": false,
+				"required": true
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    },
+    "userenvs": {
+	"type": "list",
+	"required": true,
+	"excludes": "userenv",
+	"schema": {
+	    "type": "dict",
+	    "schema": {
+		"name": {
+		    "type": "string",
+		    "empty": false,
+		    "required": true
+		},
+		"requirements": {
+		    "type": "list",
+		    "required": true,
+		    "schema": {
+			"type": "string",
+			"empty": false
+		    }
+		}
+	    }
+	}
+    },
+    "requirements": {
+	"type": "list",
+	"required": true,
+	"schema": {
+	    "type": "dict",
+	    "schema": {
+		"name": {
+		    "type": "string",
+		    "empty": false,
+		    "required": true
+		},
+		"type": {
+		    "allowed": [
+			"distro",
+			"manual",
+			"source",
+			"files"
+		    ],
+		    "required": true
+		},
+		"distro_info": {
+		    "type": "dict",
+		    "required": true,
+		    "dependencies": {
+			"type": "distro"
+		    },
+		    "excludes": [
+			"manual_info",
+			"source_info",
+			"files_info"
+		    ],
+		    "anyof": [
+			{
+			    "dependencies": [
+				"distro_info.packages"
+			    ]
+			},
+			{
+			    "dependencies": [
+				"distro_info.groups"
+			    ]
+			}
+		    ],
+		    "schema": {
+			"packages": {
+			    "type": "list",
+			    "schema": {
+				"type": "string",
+				"empty": false
+			    }
+			},
+			"groups": {
+			    "type": "list",
+			    "schema": {
+				"type": "string",
+				"empty": false
+			    }
+			}
+		    }
+		},
+		"manual_info": {
+		    "type": "dict",
+		    "required": true,
+		    "dependencies": {
+			"type": "manual"
+		    },
+		    "excludes": [
+			"distro_info",
+			"source_info",
+			"files_info"
+		    ],
+		    "schema": {
+			"commands": {
+			    "type": "list",
+			    "required": true,
+			    "schema": {
+				"type": "string",
+				"empty": false
+			    }
+			}
+		    }
+		},
+		"source_info": {
+		    "type": "dict",
+		    "required": true,
+		    "dependencies": {
+			"type": "source"
+		    },
+		    "excludes": [
+			"distro_info",
+			"manual_info",
+			"files_info"
+		    ],
+		    "schema": {
+			"url": {
+			    "type": "string",
+			    "empty": false,
+			    "required": true
+			},
+			"filename": {
+			    "type": "string",
+			    "empty": false,
+			    "required": true
+			},
+			"commands": {
+			    "type": "dict",
+			    "required": true,
+			    "schema": {
+				"unpack": {
+				    "type": "string",
+				    "empty": false,
+				    "required": true
+				},
+				"get_dir": {
+				    "type": "string",
+				    "empty": false,
+				    "required": true
+				},
+				"commands": {
+				    "type": "list",
+				    "required": true,
+				    "schema": {
+					"type": "string",
+					"empty": false
+				    }
+				}
+			    }
+			}
+		    }
+		},
+		"files_info": {
+		    "type": "dict",
+		    "required": true,
+		    "dependencies": {
+			"type": "files"
+		    },
+		    "excludes": [
+			"distro_info",
+			"manual_info",
+			"source_info"
+		    ],
+		    "schema": {
+			"files": {
+			    "type": "list",
+			    "required": true,
+			    "schema": {
+				"type": "dict",
+				"schema": {
+				    "src": {
+					"type": "string",
+					"empty": false,
+					"required": true
+				    },
+				    "dst": {
+					"type": "string",
+					"empty": false,
+					"required": true
+				    }
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    }
+}
