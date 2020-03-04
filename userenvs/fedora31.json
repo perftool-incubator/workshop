@@ -27,15 +27,6 @@
 		    "python36"
 		]
 	    }
-	},
-	{
-	    "name": "development-tools",
-	    "type": "distro",
-	    "distro_info": {
-		"groups": [
-		    "\"Development Tools\""
-		]
-	    }
 	}
     ]
 }

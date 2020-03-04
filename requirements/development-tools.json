@@ -1,0 +1,26 @@
+{
+    "workshop": {
+	"schema": {
+	    "version": "2020.03.02"
+	}
+    },
+    "userenvs": [
+	{
+	    "name": "fedora31",
+	    "requirements": [
+		"development-tools"
+	    ]
+	}
+    ],
+    "requirements": [
+	{
+	    "name": "development-tools",
+	    "type": "distro",
+	    "distro_info": {
+		"groups": [
+		    "\"Development Tools\""
+		]
+	    }
+	}
+    ]
+}
