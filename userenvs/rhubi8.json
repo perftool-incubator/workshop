@@ -1,0 +1,86 @@
+{
+    "workshop": {
+	    "schema": {
+	        "version": "2020.03.02"
+	    }
+    },
+    "userenv": {
+	    "name": "rhubi8",
+	    "label": "Red Hat UBI 8",
+	    "origin": {
+	        "image": "registry.redhat.io/ubi8/ubi",
+	        "tag": "latest"
+	    },
+	    "properties": {
+	        "packages": {
+		    "type": "rpm",
+		    "manager": "dnf"
+	        }
+	    }
+    },
+    "requirements": [
+	    {
+	        "name": "python36",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "python36"
+		        ]
+	            }
+	    },
+	    {
+	        "name": "gcc",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "gcc"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "make",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "make"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "git",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "git"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "cpio",
+	        "type": "distro",
+	        "distro_info": {
+		    "packages": [
+		            "cpio"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "findutils",
+	        "type": "distro",
+	        "distro_info": {
+		    "packages": [
+		            "findutils"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "hostname",
+	        "type": "distro",
+	        "distro_info": {
+		    "packages": [
+		            "hostname"
+		        ]
+	        }
+	    }
+    ]
+}
