@@ -710,7 +710,7 @@ logger('debug', "The sha256 for the image configuration is '$config_checksum'\n"
 logger('debug', "Checksum Array:\n");
 logger('debug', Dumper(\@checksums));
 
-my $tmp_container = $me . "_" . $userenv_json->{'userenv'}{'name'};
+my $tmp_container = $userenv_json->{'userenv'}{'name'};
 if (defined $args{'label'}) {
     $tmp_container .= "_" . $args{'label'};
 }
@@ -719,14 +719,14 @@ my $remove_image = 0;
 
 # cleanup an existing container image that we are going to replace, if it exists
 logger('info', "Checking if container image already exists...\n");
-($command, $command_output, $rc) = run_command("buildah images --json $tmp_container");
+($command, $command_output, $rc) = run_command("buildah images --json localhost/$me/$tmp_container");
 if ($rc == 0) {
     logger('info', "found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 
     logger('info', "Checking if the existing container image config version is a match...\n");
     logger('info', "getting config version from image...\n", 1);
-    ($command, $command_output, $rc) = run_command("buildah inspect --type image --format '{{.ImageAnnotations.Workshop_Config_Version}}' $tmp_container");
+    ($command, $command_output, $rc) = run_command("buildah inspect --type image --format '{{.ImageAnnotations.Workshop_Config_Version}}' localhost/$me/$tmp_container");
     if ($rc != 0) {
         logger('info', "failed\n", 2);
         command_logger('error', $command, $rc, $command_output);
@@ -1303,7 +1303,7 @@ if ($rc != 0) {
 
 # create the new container image
 logger('info', "Creating new container image...\n");
-($command, $command_output, $rc) = run_command("buildah commit --quiet $tmp_container $tmp_container");
+($command, $command_output, $rc) = run_command("buildah commit --quiet $tmp_container localhost/$me/$tmp_container");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
