@@ -11,6 +11,7 @@ use Scalar::Util qw(looks_like_number);
 use File::Basename;
 use Digest::SHA qw(sha256_hex);
 use Coro;
+use JSON::Validator;
 
 use Data::UUID;
 my $uuid = Data::UUID->new;
@@ -30,13 +31,11 @@ my $indent = "    ";
 my %args;
 $args{'log-level'} = 'info';
 $args{'skip-update'} = 'false';
-$args{'skip-json-validation'} = 'false';
 $args{'force'} = 'false';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--json-validator', '--skip-json-validation', '--force', '--config' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
-my %skip_json_validation_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
 
 my @virtual_fs = ('dev', 'proc', 'sys');
@@ -61,7 +60,7 @@ sub get_exit_code {
     my %reasons = (
         'success' => 0,
         'no_userenv' => 1,
-        'json_validator_not_found' => 2,
+
         'schema_not_found' => 3,
         'userenv_failed_validation' => 4,
         'failing_opening_userenv' => 5,
@@ -300,11 +299,6 @@ sub arg_handler {
                 print "$key ";
             }
             print "\n";
-        } elsif ($opt_value eq '--skip-json-validations') {
-            foreach my $key (sort (keys %skip_json_validation_options)) {
-                print "$key ";
-            }
-            print "\n";
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
@@ -358,18 +352,6 @@ sub arg_handler {
 
             die("--log-level must be one of 'info', 'verbose', or 'debug' [not '$opt_value']\n");
         }
-    } elsif ($opt_name eq "skip-json-validation") {
-        if (exists ($skip_json_validation_options{$opt_value})) {
-            $args{'skip-json-validation'} = $opt_value;
-        } else {
-            die("--skip-json-validation must be one of 'true' or 'false' [not '$opt_value']");
-        }
-    } elsif ($opt_name eq "json-validator") {
-        if (! -e $opt_value) {
-            die("--json-validator must be a valid path to 'json-validator' [not '$opt_value']");
-        }
-
-        $args{'json-validator'} = $opt_value;
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -382,8 +364,6 @@ GetOptions("completions=s" => \&arg_handler,
            "skip-update=s" => \&arg_handler,
            "force=s" => \&arg_handler,
            "userenv=s" => \&arg_handler,
-           "json-validator=s" => \&arg_handler,
-           "skip-json-validation=s" => \&arg_handler,
            "label=s" => \&arg_handler)
     or die("Error in command line arguments");
 
@@ -399,56 +379,27 @@ if (! exists $args{'userenv'}) {
     exit(get_exit_code('no_userenv'));
 }
 
+my $json_v;
+
 my $userenv_json;
 
 my $command;
 my $command_output;
 my $rc;
 
-my $json_validator_path;
-if (exists($args{'json-validator'})) {
-    $json_validator_path = $args{'json-validator'};
+my $dirname = dirname(__FILE__);
+my $schema_location = $dirname . "/schema.json";
+if (! -e $schema_location) {
+    logger('error', "Failed to locate schema.json (assumed location is '$schema_location')\n");
+    exit(get_exit_code('schema_not_found'));
 } else {
-    $json_validator_path = "json-validator";
-}
-my $perform_schema_validations = 1;
-if ($args{'skip-json-validation'} eq 'true') {
-    $perform_schema_validations = 0;
-}
-my $schema_location;
-if ($perform_schema_validations) {
-    ($command, $command_output, $rc) = run_command("$json_validator_path --help");
-    if ($rc != 0) {
-        $perform_schema_validations = 0;
-        logger('error', "Unable to perform JSON input file schema validation because the json-validator could not be found!\n");
-        exit(get_exit_code('json_validator_not_found'));
-    } else {
-        my $dirname = dirname(__FILE__);
-        $schema_location = $dirname . "/schema.json";
-        if (! -e $schema_location) {
-            logger('error', "Failed to locate schema.json (assumed location is '$schema_location')\n");
-            exit(get_exit_code('schema_not_found'));
-        } else {
-            logger('info', "Using '$schema_location' for JSON input file schema validation\n");
-        }
-    }
+    logger('info', "Using '$schema_location' for JSON input file schema validation\n");
+
+    $json_v = JSON::Validator->new;
+    $json_v->schema($schema_location);
 }
 
 logger('info', "Loading userenv definition from '$args{'userenv'}'...\n");
-
-if ($perform_schema_validations) {
-    logger('info', "validating JSON schema...\n", 1);
-    ($command, $command_output, $rc) = run_command("$json_validator_path --json $args{'userenv'} --schema $schema_location");
-    if ($rc != 0) {
-        logger('info', "failed\n", 2);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "The supplied userenv definition '$args{'userenv'}' failed schema validation!\n");
-        exit(get_exit_code('userenv_failed_validation'));
-    } else {
-        logger('info', "succeeded\n", 2);
-        command_logger('verbose', $command, $rc, $command_output);
-    }
-}
 
 logger('info', "importing JSON...\n", 1);
 if (open(my $userenv_fh, "<", $args{'userenv'})) {
@@ -466,6 +417,17 @@ if (open(my $userenv_fh, "<", $args{'userenv'})) {
     logger('info', "failed\n", 2);
     logger('error', "Could not open userenv file '$args{'userenv'}' for reading!\n");
     exit(get_exit_code('failing_opening_userenv'));
+}
+
+logger('info', "validating JSON...\n", 1);
+my @json_v_errors = $json_v->validate($userenv_json);
+if (scalar(@json_v_errors) > 0) {
+    logger('info', "failed\n", 2);
+    logger('error', "Could not JSON validate the userenv file '$args{'userenv'}'!\n");
+    logger('error', Dumper(\@json_v_errors));
+    exit(get_exit_code('userenv_failed_validation'));
+} else {
+    logger('info', "succeeded\n", 2);
 }
 
 logger('info', "calculating sha256...\n", 1);
@@ -502,20 +464,6 @@ push(@all_requirements, $userenv_reqs);
 foreach my $req (@{$args{'reqs'}}) {
     logger('info', "'$req'...\n", 1);
 
-    if ($perform_schema_validations) {
-        logger('info', "validating JSON schema...\n", 2);
-        ($command, $command_output, $rc) = run_command("$json_validator_path --json $req --schema $schema_location");
-        if ($rc != 0) {
-            logger('info', "failed\n", 3);
-            command_logger('error', $command, $rc, $command_output);
-            logger('error', "The supplied requirement definition '$req' failed schema validation!\n");
-            exit(get_exit_code('requirement_failed_validation'));
-        } else {
-            logger('info', "succeeded\n", 3);
-            command_logger('verbose', $command, $rc, $command_output);
-        }
-    }
-
     my $tmp_req = {};
 
     logger('info', "importing JSON...\n", 2);
@@ -535,6 +483,17 @@ foreach my $req (@{$args{'reqs'}}) {
         logger('info', "failed\n", 3);
         logger('error', "Failed to load requirement file '$req'!\n");
         exit(get_exit_code('failed_opening_requirement'));
+    }
+
+    logger('info', "validating JSON...\n", 2);
+    my @json_v_errors = $json_v->validate($tmp_req->{'json'});
+    if (scalar(@json_v_errors) > 0) {
+        logger('info', "failed\n", 3);
+        logger('error', "Could not JSON validate the requirement file '$req'!\n");
+        logger('error', Dumper(\@json_v_errors));
+        exit(get_exit_code('requirement_failed_validation'));
+    } else {
+        logger('info', "succeeded\n", 3);
     }
 
     push(@all_requirements, $tmp_req);
@@ -658,20 +617,6 @@ my $config_json;
 if (exists($args{'config'})) {
     logger('info', "Loading config definition from '$args{'config'}'...\n");
 
-    if ($perform_schema_validations) {
-        logger('info', "validating JSON schema...\n", 1);
-        ($command, $command_output, $rc) = run_command("$json_validator_path --json $args{'config'} --schema $schema_location");
-        if ($rc != 0) {
-            logger('info', "failed\n", 2);
-            command_logger('error', $command, $rc, $command_output);
-            logger('error', "The supplied config definition '$args{'config'}' failed schema validation!\n");
-            exit(get_exit_code('config_failed_validation'));
-        } else {
-            logger('info', "succeeded\n", 2);
-            command_logger('verbose', $command, $rc, $command_output);
-        }
-    }
-
     logger('info', "importing JSON...\n", 1);
     if (open(my $config_fh, "<", $args{'config'})) {
         my $file_contents;
@@ -688,6 +633,17 @@ if (exists($args{'config'})) {
         logger('info', "failed\n", 2);
         logger('error', "Could not open config file '$args{'config'} for reading!\n");
         exit(get_exit_code('failing_opening_config'));
+    }
+
+    logger('info', "validating JSON...\n", 1);
+    my @json_v_errors = $json_v->validate($config_json);
+    if (scalar(@json_v_errors) > 0) {
+        logger('info', "failed\n", 2);
+        logger('error', "Could not JSON validate the config file '$args{'config'}'!\n");
+        logger('error', Dumper(\@json_v_errors));
+        exit(get_exit_code('config_failed_validation'));
+    } else {
+        logger('info', "succeeded\n", 2);
     }
 
     logger('info', "calculating sha256...\n", 1);
