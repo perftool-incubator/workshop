@@ -1,263 +1,375 @@
 {
-    "workshop": {
-	"type": "dict",
-	"required": true,
-	"schema": {
-	    "schema": {
-		"type": "dict",
-		"required": true,
-		"schema": {
-		    "version": {
-			"allowed": [
-			    "2020.03.02"
-			],
-			"required": true
-		    }
-		}
-	    }
-	}
-    },
-    "userenv": {
-	"type": "dict",
-	"required": true,
-	"excludes": "userenvs",
-	"schema": {
-	    "name": {
-		"type": "string",
-		"empty": false,
-		"required": true
-	    },
-	    "label": {
-		"type": "string",
-		"empty": false,
-		"required": true
-	    },
-	    "origin": {
-		"type": "dict",
-		"required": true,
-		"schema": {
-		    "image": {
-			"type": "string",
-			"empty": false,
-			"required": true
-		    },
-		    "tag": {
-			"type": "string",
-			"empty": false,
-			"required": true
-		    }
-		}
-	    },
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://raw.githubusercontent.com/perftool-incubator/workshop/master/schema.json",
+
+    "oneOf": [
+	{
+	    "type": "object",
 	    "properties": {
-		"type": "dict",
-		"required": true,
-		"schema": {
-		    "packages": {
-			"type": "dict",
-			"required": true,
-			"schema": {
-			    "type": {
-				"type": "string",
-				"empty": false,
-				"required": true
-			    },
-			    "manager": {
-				"type": "string",
-				"empty": false,
-				"required": true
-			    }
-			}
-		    }
-		}
-	    }
-	}
-    },
-    "userenvs": {
-	"type": "list",
-	"required": true,
-	"excludes": "userenv",
-	"schema": {
-	    "type": "dict",
-	    "schema": {
-		"name": {
-		    "type": "string",
-		    "empty": false,
-		    "required": true
+		"workshop": {
+		    "$ref": "#/definitions/workshop"
+		},
+		"userenv": {
+		    "$ref": "#/definitions/userenv"
 		},
 		"requirements": {
-		    "type": "list",
-		    "required": true,
-		    "schema": {
-			"type": "string",
-			"empty": false
-		    }
+		    "$ref": "#/definitions/requirements"
 		}
-	    }
+	    },
+	    "required": [
+		"workshop",
+		"userenv",
+		"requirements"
+	    ],
+	    "additionalProperties": false
+	},
+	{
+	    "type": "object",
+	    "properties": {
+		"workshop": {
+		    "$ref": "#/definitions/workshop"
+		},
+		"userenvs": {
+		    "$ref": "#/definitions/userenvs"
+		},
+		"requirements": {
+		    "$ref": "#/definitions/requirements"
+		}
+	    },
+	    "required": [
+		"workshop",
+		"userenvs",
+		"requirements"
+	    ],
+	    "additionalProperties": false
 	}
-    },
-    "requirements": {
-	"type": "list",
-	"required": true,
-	"schema": {
-	    "type": "dict",
-	    "schema": {
+    ],
+    "definitions": {
+	"workshop": {
+	    "type": "object",
+	    "properties": {
+		"schema": {
+		    "type": "object",
+		    "properties": {
+			"version": {
+			    "type": "string",
+			    "enum": [
+				"2020.03.02"
+			    ]
+			}
+		    },
+		    "required": [
+			"version"
+		    ],
+		    "additionalProperties": false
+		}
+	    },
+	    "required": [
+		"schema"
+	    ],
+	    "additionalProperties": false
+	},
+	"userenv": {
+	    "type": "object",
+	    "properties": {
 		"name": {
 		    "type": "string",
-		    "empty": false,
-		    "required": true
+		    "minLength": 1
 		},
-		"type": {
-		    "allowed": [
-			"distro",
-			"manual",
-			"source",
-			"files"
-		    ],
-		    "required": true
+		"label": {
+		    "type": "string",
+		    "minLength": 1
 		},
-		"distro_info": {
-		    "type": "dict",
-		    "required": true,
-		    "dependencies": {
-			"type": "distro"
-		    },
-		    "excludes": [
-			"manual_info",
-			"source_info",
-			"files_info"
-		    ],
-		    "anyof": [
-			{
-			    "dependencies": [
-				"distro_info.packages"
-			    ]
+		"origin": {
+		    "type": "object",
+		    "properties": {
+			"image": {
+			    "type": "string",
+			    "minLength": 1
 			},
-			{
-			    "dependencies": [
-				"distro_info.groups"
-			    ]
+			"tag": {
+			    "type": "string",
+			    "minLength": 1
 			}
+		    },
+		    "required": [
+			"image",
+			"tag"
 		    ],
-		    "schema": {
+		    "additionalProperties": false
+		},
+		"properties": {
+		    "type": "object",
+		    "properties": {
 			"packages": {
-			    "type": "list",
-			    "schema": {
-				"type": "string",
-				"empty": false
-			    }
-			},
-			"groups": {
-			    "type": "list",
-			    "schema": {
-				"type": "string",
-				"empty": false
-			    }
-			}
-		    }
-		},
-		"manual_info": {
-		    "type": "dict",
-		    "required": true,
-		    "dependencies": {
-			"type": "manual"
-		    },
-		    "excludes": [
-			"distro_info",
-			"source_info",
-			"files_info"
-		    ],
-		    "schema": {
-			"commands": {
-			    "type": "list",
-			    "required": true,
-			    "schema": {
-				"type": "string",
-				"empty": false
-			    }
-			}
-		    }
-		},
-		"source_info": {
-		    "type": "dict",
-		    "required": true,
-		    "dependencies": {
-			"type": "source"
-		    },
-		    "excludes": [
-			"distro_info",
-			"manual_info",
-			"files_info"
-		    ],
-		    "schema": {
-			"url": {
-			    "type": "string",
-			    "empty": false,
-			    "required": true
-			},
-			"filename": {
-			    "type": "string",
-			    "empty": false,
-			    "required": true
-			},
-			"commands": {
-			    "type": "dict",
-			    "required": true,
-			    "schema": {
-				"unpack": {
+			    "type": "object",
+			    "properties": {
+				"type": {
 				    "type": "string",
-				    "empty": false,
-				    "required": true
+				    "minLength": 1
 				},
-				"get_dir": {
+				"manager": {
 				    "type": "string",
-				    "empty": false,
-				    "required": true
-				},
-				"commands": {
-				    "type": "list",
-				    "required": true,
-				    "schema": {
-					"type": "string",
-					"empty": false
-				    }
+				    "minLength": 1
 				}
-			    }
+			    },
+			    "required": [
+				"type",
+				"manager"
+			    ],
+			    "additionalProperties": false
 			}
-		    }
-		},
-		"files_info": {
-		    "type": "dict",
-		    "required": true,
-		    "dependencies": {
-			"type": "files"
 		    },
-		    "excludes": [
-			"distro_info",
-			"manual_info",
-			"source_info"
+		    "required": [
+			"packages"
 		    ],
-		    "schema": {
-			"files": {
-			    "type": "list",
-			    "required": true,
-			    "schema": {
-				"type": "dict",
-				"schema": {
-				    "src": {
-					"type": "string",
-					"empty": false,
-					"required": true
-				    },
-				    "dst": {
-					"type": "string",
-					"empty": false,
-					"required": true
-				    }
-				}
-			    }
-			}
-		    }
+		    "additionalProperties": false
 		}
+	    },
+	    "required": [
+		"name",
+		"label",
+		"origin",
+		"properties"
+	    ],
+	    "additionalProperties": false
+	},
+	"userenvs": {
+	    "type": "array",
+	    "minItems": 1,
+	    "uniqueItems": true,
+	    "items": {
+		"type": "object",
+		"properties": {
+		    "name": {
+			"type": "string",
+			"minLength": 1
+		    },
+		    "requirements": {
+			"type": "array",
+			"items": {
+			    "type": "string",
+			    "minLength": 1
+			}
+		    }
+		},
+		"required": [
+		    "name",
+		    "requirements"
+		],
+		"additionalProperties": false
+	    }
+	},
+	"requirements": {
+	    "type": "array",
+	    "uniqueItems": true,
+	    "items": {
+		"oneOf": [
+		    {
+			"type": "object",
+			"properties": {
+			    "name": {
+				"type": "string",
+				"minLength": 1
+			    },
+			    "type": {
+				"type": "string",
+				"enum": [
+				    "distro"
+				]
+			    },
+			    "distro_info": {
+				"type": "object",
+				"minProperties": 1,
+				"properties": {
+				    "packages": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueuItems": true,
+					"items": {
+					    "type": "string",
+					    "minLength": 1
+					}
+				    },
+				    "groups": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueuItems": true,
+					"items": {
+					    "type": "string",
+					    "minLength": 1
+					}
+				    }
+				},
+				"additionalProperties": false
+			    }
+			},
+			"required": [
+			    "name",
+			    "type",
+			    "distro_info"
+			],
+			"additionalProperties": false
+		    },
+		    {
+			"type": "object",
+			"properties": {
+			    "name": {
+				"type": "string",
+				"minLength": 1
+			    },
+			    "type": {
+				"type": "string",
+				"enum": [
+				    "manual"
+				]
+			    },
+			    "manual_info": {
+				"type": "object",
+				"properties": {
+				    "commands": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+					    "type": "string",
+					    "minLength": 1
+					}
+				    }
+				},
+				"required": [
+				    "commands"
+				],
+				"additionalProperties": false
+			    }
+			},
+			"required": [
+			    "name",
+			    "type",
+			    "manual_info"
+			],
+			"additionalProperties": false
+		    },
+		    {
+			"type": "object",
+			"properties": {
+			    "name": {
+				"type": "string",
+				"minLength": 1
+			    },
+			    "type": {
+				"type": "string",
+				"enum": [
+				    "source"
+				]
+			    },
+			    "source_info": {
+				"type": "object",
+				"properties": {
+				    "url": {
+					"type": "string",
+					"minLength": 1
+				    },
+				    "filename": {
+					"type": "string",
+					"minLength": 1
+				    },
+				    "commands": {
+					"type": "object",
+					"properties": {
+					    "unpack": {
+						"type": "string",
+						"minLength": 1
+					    },
+					    "get_dir": {
+						"type": "string",
+						"minLength": 1
+					    },
+					    "commands": {
+						"type": "array",
+						"minItems": 1,
+						"uniqueItems": true,
+						"items": {
+						    "type": "string",
+						    "minLength": 1
+						}
+					    }
+					},
+					"required": [
+					    "unpack",
+					    "get_dir",
+					    "commands"
+					],
+					"additionalProperties": false
+				    }
+				},
+				"required": [
+				    "url",
+				    "filename",
+				    "commands"
+				],
+				"additionalProperties": false
+			    }
+			},
+			"required": [
+			    "name",
+			    "type",
+			    "source_info"
+			],
+			"additionalProperties": false
+		    },
+		    {
+			"type": "object",
+			"properties": {
+			    "name": {
+				"type": "string",
+				"minLength": 1
+			    },
+			    "type": {
+				"type": "string",
+				"enum": [
+				    "files"
+				]
+			    },
+			    "files_info": {
+				"type": "object",
+				"properties": {
+				    "files": {
+					"type": "array",
+					"items": {
+					    "type": "object",
+					    "properties": {
+						"src": {
+						    "type": "string",
+						    "minLength": 1
+						},
+						"dst": {
+						    "type": "string",
+						    "minLength": 1
+						}
+					    },
+					    "required": [
+						"src",
+						"dst"
+					    ],
+					    "additionalProperties": false
+					}
+				    }
+				},
+				"required": [
+				    "files"
+				],
+				"additionalProperties": false
+			    }
+			},
+			"required": [
+			    "name",
+			    "type",
+			    "files_info"
+			],
+			"additionalProperties": false
+		    }
+		]
 	    }
 	}
     }

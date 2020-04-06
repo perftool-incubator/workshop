@@ -98,7 +98,7 @@ sub get_exit_code {
         'directory_reference' => 36,
         'local-copy_failed' => 37,
         'copy_dst_missing' => 38,
-        'copy_src_missing' => 39,
+
         'copy_type' => 40,
         'virtual_fs_umount' => 41,
         'resolve.conf_remove' => 42,
@@ -800,7 +800,7 @@ if ($command_output !~ /null/) {
 
 if ($remove_image) {
     logger('info', "Removing existing container image that I am about to replace [$tmp_container]...\n");
-    ($command, $command_output, $rc) = run_command("buildah rmi $tmp_container");
+    ($command, $command_output, $rc) = run_command("buildah rmi $me/$tmp_container");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
@@ -987,29 +987,22 @@ if (opendir(NORMAL_ROOT, "/")) {
                     foreach my $file (@{$req->{'files_info'}{'files'}}) {
                         logger('info', "copying '$file->{'src'}'...\n", 2);
 
-                        if (-e $file->{'src'}) {
-                            if (exists($file->{'dst'})) {
-                                ($command, $command_output, $rc) = run_command("buildah add $tmp_container $file->{'src'} $file->{'dst'}");
-                                if ($rc != 0) {
-                                    logger('info', "failed\n", 3);
-                                    command_logger('error', $command, $rc, $command_output);
-                                    logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
-                                    $return_channel->put(get_exit_code('local-copy_failed'));
-                                } else {
-                                    logger('info', "succeeded\n", 3);
-                                    command_logger('verbose', $command, $rc, $command_output);
-                                }
-                            } else {
+                        if (exists($file->{'dst'})) {
+                            ($command, $command_output, $rc) = run_command("buildah add $tmp_container $file->{'src'} $file->{'dst'}");
+                            if ($rc != 0) {
                                 logger('info', "failed\n", 3);
                                 command_logger('error', $command, $rc, $command_output);
-                                logger('error', "Destination '$file->{'dst'}' not defined!\n");
-                                $return_channel->put(get_exit_code('copy_dst_missing'));
+                                logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
+                                $return_channel->put(get_exit_code('local-copy_failed'));
+                            } else {
+                                logger('info', "succeeded\n", 3);
+                                command_logger('verbose', $command, $rc, $command_output);
                             }
                         } else {
                             logger('info', "failed\n", 3);
                             command_logger('error', $command, $rc, $command_output);
-                            logger('error', "Local source file '$file->{'src'}' not found!\n");
-                            $return_channel->put(get_exit_code('copy_src_missing'));
+                            logger('error', "Destination '$file->{'dst'}' not defined!\n");
+                            $return_channel->put(get_exit_code('copy_dst_missing'));
                         }
                     }
                 }
