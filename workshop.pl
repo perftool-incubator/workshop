@@ -33,7 +33,7 @@ $args{'skip-update'} = 'false';
 $args{'skip-json-validation'} = 'false';
 $args{'force'} = 'false';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--json-validator', '--skip-json-validation', '--force' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--json-validator', '--skip-json-validation', '--force', '--config' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %skip_json_validation_options = ( 'true' => 1, 'false' => 1 );
@@ -98,7 +98,7 @@ sub get_exit_code {
         'directory_reference' => 36,
         'local-copy_failed' => 37,
         'copy_dst_missing' => 38,
-
+        'config_failed_validation' => 39,
         'copy_type' => 40,
         'virtual_fs_umount' => 41,
         'resolve.conf_remove' => 42,
@@ -108,7 +108,13 @@ sub get_exit_code {
         'new_container_cleanup' => 46,
         'config_annotate_fail' => 47,
         'get_config_version' => 48,
-        'coro_failure' => 49
+        'coro_failure' => 49,
+        'failing_opening_config' => 50,
+        'config_set_entrypoint' => 51,
+        'config_set_author' => 52,
+        'config_set_annotation' => 53,
+        'config_set_env' => 54,
+        'config_set_port' => 55
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -302,6 +308,12 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
+    } elsif ($opt_name eq "config") {
+        $args{'config'} = $opt_value;
+
+        if (! -e $args{'config'}) {
+            die("--config must be a valid file [not '$args{'config'}']");
+        }
     } elsif ($opt_name eq "userenv") {
         $args{'userenv'} = $opt_value;
 
@@ -364,6 +376,7 @@ sub arg_handler {
 }
 
 GetOptions("completions=s" => \&arg_handler,
+           "config=s" => \&arg_handler,
            "log-level=s" => \&arg_handler,
            "requirements=s" => \&arg_handler,
            "skip-update=s" => \&arg_handler,
@@ -639,6 +652,53 @@ logger('debug', "All Requirements Hash:\n");
 logger('debug', Dumper(\@all_requirements));
 logger('debug', "Active Requirements Hash:\n");
 logger('debug', Dumper(\%active_requirements));
+
+my $config_json;
+
+if (exists($args{'config'})) {
+    logger('info', "Loading config definition from '$args{'config'}'...\n");
+
+    if ($perform_schema_validations) {
+        logger('info', "validating JSON schema...\n", 1);
+        ($command, $command_output, $rc) = run_command("$json_validator_path --json $args{'config'} --schema $schema_location");
+        if ($rc != 0) {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "The supplied config definition '$args{'config'}' failed schema validation!\n");
+            exit(get_exit_code('config_failed_validation'));
+        } else {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    }
+
+    logger('info', "importing JSON...\n", 1);
+    if (open(my $config_fh, "<", $args{'config'})) {
+        my $file_contents;
+        while(<$config_fh>) {
+            $file_contents .= $_;
+        }
+
+        $config_json = decode_json($file_contents);
+
+        close($config_fh);
+
+        logger('info', "succeeded\n", 2);
+    } else {
+        logger('info', "failed\n", 2);
+        logger('error', "Could not open config file '$args{'config'} for reading!\n");
+        exit(get_exit_code('failing_opening_config'));
+    }
+
+    logger('info', "calculating sha256...\n", 1);
+    $config_json->{'sha256'} = sha256_hex(Dumper($config_json));
+    logger('info', "succeeded\n", 2);
+
+    logger('debug', "Config Hash:\n");
+    logger('debug', Dumper($config_json));
+
+    push(@checksums, $config_json->{'sha256'});
+}
 
 my $container_mount_point;
 
@@ -1292,6 +1352,92 @@ if ($rc != 0) {
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
+}
+
+if (exists($args{'config'})) {
+    logger('info', "Adding requested config information to the temporary container...\n");
+
+    if (exists($config_json->{'config'}{'entrypoint'})) {
+        logger('info', "setting entrypoint...\n", 1);
+        ($command, $command_output, $rc) = run_command("buildah config --entrypoint '$config_json->{'config'}{'entrypoint'}' $tmp_container");
+        if ($rc != 0) {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to add requested config entrypoint to the temporary container '$tmp_container'!\n");
+            exit(get_exit_code('config_set_entrypoint'));
+        } else {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    }
+
+    if (exists($config_json->{'config'}{'author'})) {
+        logger('info', "setting author...\n", 1);
+        ($command, $command_output, $rc) = run_command("buildah config --author '$config_json->{'config'}{'author'}' $tmp_container");
+        if ($rc != 0) {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to add requested config author to the temporary container '$tmp_container'!\n");
+            exit(get_exit_code('config_set_author'));
+        } else {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    }
+
+    if (exists($config_json->{'config'}{'annotations'})) {
+        logger('info', "setting annotation(s)...\n", 1);
+
+        for my $annotation (@{$config_json->{'config'}{'annotations'}}) {
+            logger('info', "'$annotation'...\n", 2);
+            ($command, $command_output, $rc) = run_command("buildah config --annotation '$annotation' $tmp_container");
+            if ($rc != 0) {
+                logger('info', "failed\n", 3);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to add requested config annotation to the temporary container '$tmp_container'!\n");
+                exit(get_exit_code('config_set_annotation'));
+            } else {
+                logger('info', "succeeded\n", 3);
+                command_logger('verbose', $command, $rc, $command_output);
+            }
+        }
+    }
+
+    if (exists($config_json->{'config'}{'envs'})) {
+        logger('info', "setting environment variable(s)...\n", 1);
+
+        for my $env (@{$config_json->{'config'}{'envs'}}) {
+            logger('info', "'$env'...\n", 2);
+            ($command, $command_output, $rc) = run_command("buildah config --env '$env' $tmp_container");
+            if ($rc != 0) {
+                logger('info', "failed\n", 3);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to add requested config environment variable to the temporary container '$tmp_container'!\n");
+                exit(get_exit_code('config_set_env'));
+            } else {
+                logger('info', "succeeded\n", 3);
+                command_logger('verbose', $command, $rc, $command_output);
+            }
+        }
+    }
+
+    if (exists($config_json->{'config'}{'ports'})) {
+        logger('info', "setting port(s)...\n", 1);
+
+        for my $port (@{$config_json->{'config'}{'ports'}}) {
+            logger('info', "'$port'...\n", 2);
+            ($command, $command_output, $rc) = run_command("buildah config --port $port $tmp_container");
+            if ($rc != 0) {
+                logger('info', "failed\n", 3);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to add requested config port to the temporary container '$tmp_container'!\n");
+                exit(get_exit_code('config_set_port'));
+            } else {
+                logger('info', "succeeded\n", 3);
+                command_logger('verbose', $command, $rc, $command_output);
+            }
+        }
+    }
 }
 
 # create the new container image

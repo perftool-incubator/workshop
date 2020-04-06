@@ -42,6 +42,22 @@
 		"requirements"
 	    ],
 	    "additionalProperties": false
+	},
+	{
+	    "type": "object",
+	    "properties": {
+		"workshop": {
+		    "$ref": "#/definitions/workshop"
+		},
+		"config": {
+		    "$ref": "#/definitions/config"
+		}
+	    },
+	    "required": [
+		"workshop",
+		"config"
+	    ],
+	    "additionalProperties": false
 	}
     ],
     "definitions": {
@@ -54,7 +70,8 @@
 			"version": {
 			    "type": "string",
 			    "enum": [
-				"2020.03.02"
+				"2020.03.02",
+				"2020.04.06"
 			    ]
 			}
 		    },
@@ -371,6 +388,51 @@
 		    }
 		]
 	    }
+	},
+	"config": {
+	    "type": "object",
+	    "properties": {
+		"entrypoint": {
+		    "type": "string",
+		    "minLength": 1
+		},
+		"annotations": {
+		    "type": "array",
+		    "uniqueItems": true,
+		    "minItems": 1,
+		    "items": {
+			"type": "string",
+			"minLength": 3,
+			"pattern": ".+=.+"
+		    }
+		},
+		"author": {
+		    "type": "string",
+		    "minLength": 1
+		},
+		"envs": {
+		    "type": "array",
+		    "uniqueItems": true,
+		    "minItems": 1,
+		    "items": {
+			"type": "string",
+			"minLength": 3,
+			"pattern": ".+=.+"
+		    }
+		},
+		"ports": {
+		    "type": "array",
+		    "uniqueItems": true,
+		    "minItems": 1,
+		    "items": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 65536
+		    }
+		}
+	    },
+	    "required": [],
+	    "additionalProperties": false
 	}
     }
 }
