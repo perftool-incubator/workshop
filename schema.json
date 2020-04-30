@@ -71,7 +71,7 @@
 			    "type": "string",
 			    "enum": [
 				"2020.03.02",
-				"2020.04.06"
+				"2020.04.30"
 			    ]
 			}
 		    },
@@ -392,9 +392,17 @@
 	"config": {
 	    "type": "object",
 	    "properties": {
-		"entrypoint": {
+		"cmd": {
 		    "type": "string",
 		    "minLength": 1
+		},
+		"entrypoint": {
+		    "type": "array",
+		    "minItems": 1,
+		    "items": {
+			"type": "string",
+			"minLength": 1
+		    }
 		},
 		"annotations": {
 		    "type": "array",

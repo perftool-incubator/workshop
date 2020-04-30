@@ -60,7 +60,7 @@ sub get_exit_code {
     my %reasons = (
         'success' => 0,
         'no_userenv' => 1,
-
+        'config_set_cmd' => 2,
         'schema_not_found' => 3,
         'userenv_failed_validation' => 4,
         'failing_opening_userenv' => 5,
@@ -1313,9 +1313,28 @@ if ($rc != 0) {
 if (exists($args{'config'})) {
     logger('info', "Adding requested config information to the temporary container...\n");
 
+    if (exists($config_json->{'config'}{'cmd'})) {
+        logger('info', "setting cmd...\n", 1);
+        ($command, $command_output, $rc) = run_command("buildah config --cmd '$config_json->{'config'}{'cmd'}' $tmp_container");
+        if ($rc != 0) {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to add requested config cmd to the temporary container '$tmp_container'!\n");
+            exit(get_exit_code('config_set_cmd'));
+        } else {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    }
+
     if (exists($config_json->{'config'}{'entrypoint'})) {
         logger('info', "setting entrypoint...\n", 1);
-        ($command, $command_output, $rc) = run_command("buildah config --entrypoint '$config_json->{'config'}{'entrypoint'}' $tmp_container");
+        my $entrypoint = "";
+        foreach my $entrypoint_arg (@{$config_json->{'config'}{'entrypoint'}}) {
+            $entrypoint .= '"' . $entrypoint_arg . '",';
+        }
+        $entrypoint =~ s/,$//;
+        ($command, $command_output, $rc) = run_command("buildah config --entrypoint '[$entrypoint]' $tmp_container");
         if ($rc != 0) {
             logger('info', "failed\n", 2);
             command_logger('error', $command, $rc, $command_output);
