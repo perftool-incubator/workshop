@@ -197,7 +197,7 @@ sub run_command {
     my ($command) = @_;
 
     $command .= " 2>&1";
-    my $command_output = `$command`;
+    my $command_output = `. /etc/profile; $command`;
     my $rc = $? >> 8;
 
     return ($command, $command_output, $rc);
@@ -841,6 +841,7 @@ if ($rc != 0) {
     command_logger('verbose', $command, $rc, $command_output);
 }
 
+my $getsrc_cmd;
 my $update_cmd = "";
 my $clean_cmd = "";
 if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
@@ -849,9 +850,31 @@ if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
 } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "yum") {
     $update_cmd = "yum update --assumeyes";
     $clean_cmd = "yum clean all";
+} elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "apt") {
+    $getsrc_cmd = "apt-get update -y";
+    $update_cmd = "apt-get upgrade -y";
+    $clean_cmd = "apt-get clean";
+} elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "zypper") {
+    $update_cmd = "zypper update -y";
+    $clean_cmd = "zypper clean";
 } else {
     logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
     exit(get_exit_code('unsupported_package_manager'));
+}
+
+if (defined $getsrc_cmd) {
+    # get package-manager files list
+    logger('info', "Getting package-manager sources for the temporary container...\n");
+    ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $getsrc_cmd");
+    if ($rc != 0) {
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Updating the temporary container '$tmp_container' failed!\n");
+        exit(get_exit_code('update_failed'));
+    } else {
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
+    }
 }
 
 if ($args{'skip-update'} eq 'false') {
@@ -1058,6 +1081,10 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 $install_cmd = "dnf install --assumeyes " . $pkg;
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
                                 $install_cmd = "yum install --assumeyes " . $pkg;
+                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
+                                $install_cmd = "apt-get install -y " . $pkg;
+                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
+                                $install_cmd = "zypper install -y " . $pkg;
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
@@ -1088,6 +1115,11 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 $install_cmd = "dnf groupinstall --assumeyes " . $grp;
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
                                 $install_cmd = "yum groupinstall --assumeyes " . $grp;
+                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
+                                # The equivalent of 'groupinstall' is just meta-packages for apt, so no special option needed
+                                $install_cmd = "apt-get install -y --assumeyes " . $grp;
+                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
+                                $install_cmd = "zypper install -y -t pattern " . $grp;
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
