@@ -852,7 +852,7 @@ if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
     $clean_cmd = "yum clean all";
 } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "apt") {
     $getsrc_cmd = "apt-get update -y";
-    $update_cmd = "apt-get upgrade -y";
+    $update_cmd = "apt-get dist-upgrade -y";
     $clean_cmd = "apt-get clean";
 } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "zypper") {
     $update_cmd = "zypper update -y";
