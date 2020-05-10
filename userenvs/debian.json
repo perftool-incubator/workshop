@@ -5,26 +5,54 @@
 	}
     },
     "userenv": {
-	"name": "fedora31",
-	"label": "Fedora 31",
+	"name": "debian",
+	"label": "Debian",
 	"origin": {
-	    "image": "docker.io/library/fedora",
-	    "tag": "31"
+	    "image": "docker.io/library/debian",
+	    "tag": "stable-slim"
 	},
 	"properties": {
 	    "packages": {
-		"type": "rpm",
-		"manager": "dnf"
+		"type": "pkg",
+		"manager": "apt"
 	    }
 	}
     },
     "requirements": [
 	    {
+	        "name": "curl",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "curl"
+		        ]
+	            }
+	    },
+	    {
+	        "name": "gzip",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "gzip"
+		        ]
+	            }
+	    },
+	    {
+	        "name": "tar",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "tar"
+		        ]
+	            }
+	    },
+	    {
 	        "name": "python36",
 	        "type": "distro",
 	        "distro_info": {
 		        "packages": [
-		            "python36"
+		            "python3",
+                    "python3-pip"
 		        ]
 	            }
 	    },
