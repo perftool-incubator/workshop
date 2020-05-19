@@ -923,20 +923,19 @@ if ($rc != 0) {
 
 # bind mount virtual file systems that may be needed
 logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
-my $mount_cmd_log = "";
 foreach my $fs (@virtual_fs) {
     logger('info', "mounting '/$fs'...\n", 1);
     ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $container_mount_point/$fs");
-    $mount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
     if ($rc != 0) {
         logger('info', "failed\n", 2);
-        logger('error', $mount_cmd_log);
+        command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
         exit(get_exit_code('virtual_fs_mount'));
+    } else {
+        logger('info', "succeeded\n", 2);
+        command_logger('verbose', $command, $rc, $command_output);
     }
 }
-logger('info', "succeeded\n", 1);
-logger('verbose', $mount_cmd_log);
 
 if (-e $container_mount_point . "/etc/resolv.conf") {
     logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
@@ -1281,16 +1280,16 @@ my $umount_cmd_log = "";
 foreach my $fs (@virtual_fs) {
     logger('info', "unmounting '/$fs'...\n", 1);
     ($command, $command_output, $rc) = run_command("umount --verbose $container_mount_point/$fs");
-    $umount_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
     if ($rc != 0) {
         logger('info', "failed\n", 2);
-        logger('error', $umount_cmd_log);
+        command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
         exit(get_exit_code('virtual_fs_umount'));
+    } else {
+        logger('info', "succeeded\n", 2);
+        command_logger('verbose', $command, $rc, $command_output);
     }
 }
-logger('info', "succeeded\n", 1);
-logger('verbose', $umount_cmd_log);
 
 logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n");
 ($command, $command_output, $rc) = run_command("rm --verbose " . $container_mount_point . "/etc/resolv.conf");
