@@ -32,11 +32,13 @@ my %args;
 $args{'log-level'} = 'info';
 $args{'skip-update'} = 'false';
 $args{'force'} = 'false';
+$args{'dump-config'} = 'false';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
+my %dump_config_options = ( 'true' => 1, 'false' => 1);
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -352,6 +354,12 @@ sub arg_handler {
 
             die("--log-level must be one of 'info', 'verbose', or 'debug' [not '$opt_value']\n");
         }
+    } elsif ($opt_name eq "dump-config") {
+        if (exists ($dump_config_options{$opt_value})) {
+            $args{'dump-config'} = $opt_value;
+        } else {
+            die("--dump-config must be one of 'true' or 'false' [not '$opt_value']");
+        }
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -364,7 +372,8 @@ GetOptions("completions=s" => \&arg_handler,
            "skip-update=s" => \&arg_handler,
            "force=s" => \&arg_handler,
            "userenv=s" => \&arg_handler,
-           "label=s" => \&arg_handler)
+           "label=s" => \&arg_handler,
+           "dump-config=s" => \&arg_handler)
     or die("Error in command line arguments");
 
 logger('debug', "Argument Hash:\n");
@@ -654,6 +663,29 @@ if (exists($args{'config'})) {
     logger('debug', Dumper($config_json));
 
     push(@checksums, $config_json->{'sha256'});
+}
+
+if ($args{'dump-config'} eq 'true') {
+    logger('info', "Config dump:\n");
+
+    my %config_dump = ();
+
+    # consolidate information to be dumped
+    $config_dump{'userenv'} = $userenv_json;
+    $config_dump{'requirements'} = $active_requirements{'array'};
+    $config_dump{'config'} = $config_json;
+
+    # remove internal variables
+    delete $config_dump{'userenv'}{'sha256'};
+    delete $config_dump{'config'}{'sha256'};
+    for (my $i=0; $i<@{$config_dump{'requirements'}}; $i++) {
+        delete $config_dump{'requirements'}[$i]{'index'};
+        delete $config_dump{'requirements'}[$i]{'sha256'};
+    }
+
+    logger('info', Data::Dumper->Dump([\%config_dump], [qw(*config_dump)]));
+
+    exit()
 }
 
 my $container_mount_point;
