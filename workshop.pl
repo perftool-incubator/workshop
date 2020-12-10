@@ -115,7 +115,8 @@ sub get_exit_code {
         'config_set_author' => 52,
         'config_set_annotation' => 53,
         'config_set_env' => 54,
-        'config_set_port' => 55
+        'config_set_port' => 55,
+        'config_set_label' => 56
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -1470,6 +1471,24 @@ if (exists($args{'config'})) {
                 command_logger('error', $command, $rc, $command_output);
                 logger('error', "Failed to add requested config port to the temporary container '$tmp_container'!\n");
                 exit(get_exit_code('config_set_port'));
+            } else {
+                logger('info', "succeeded\n", 3);
+                command_logger('verbose', $command, $rc, $command_output);
+            }
+        }
+    }
+
+    if (exists($config_json->{'config'}{'labels'})) {
+        logger('info', "setting label(s)...\n", 1);
+
+        for my $label (@{$config_json->{'config'}{'labels'}}) {
+            logger('info', "'$label'...\n", 2);
+            ($command, $command_output, $rc) = run_command("buildah config --label $label $tmp_container");
+            if ($rc != 0) {
+                logger('info', "failed\n", 3);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to add requested config label to the temporary container '$tmp_container'!\n");
+                exit(get_exit_code('config_set_label'));
             } else {
                 logger('info', "succeeded\n", 3);
                 command_logger('verbose', $command, $rc, $command_output);
