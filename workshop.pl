@@ -898,7 +898,7 @@ if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
 if (defined $getsrc_cmd) {
     # get package-manager files list
     logger('info', "Getting package-manager sources for the temporary container...\n");
-    ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $getsrc_cmd");
+    ($command, $command_output, $rc) = run_command("buildah run --isolation chroot $tmp_container -- $getsrc_cmd");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
@@ -913,7 +913,7 @@ if (defined $getsrc_cmd) {
 if ($args{'skip-update'} eq 'false') {
     # update the container's existing content
     logger('info', "Updating the temporary container...\n");
-    ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $update_cmd");
+    ($command, $command_output, $rc) = run_command("buildah run --isolation chroot $tmp_container -- $update_cmd");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
@@ -925,7 +925,7 @@ if ($args{'skip-update'} eq 'false') {
     }
 
     logger('info', "Cleaning up after the update...\n");
-    ($command, $command_output, $rc) = run_command("buildah run $tmp_container -- $clean_cmd");
+    ($command, $command_output, $rc) = run_command("buildah run --isolation chroot $tmp_container -- $clean_cmd");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
