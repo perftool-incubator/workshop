@@ -1,0 +1,97 @@
+{
+    "workshop": {
+	    "schema": {
+	        "version": "2020.03.02"
+	    }
+    },
+    "userenv": {
+	    "name": "stream8",
+	    "label": "CentOS-Stream 8",
+	    "origin": {
+	        "image": "registry.centos.org/centos/centos",
+	        "tag": "8"
+	    },
+	    "properties": {
+	        "packages": {
+		    "type": "rpm",
+		    "manager": "dnf"
+	        }
+	    }
+    },
+    "requirements": [
+        {
+            "name": "stream-conversion",
+            "type": "manual",
+            "manual_info": {
+                "commands": [
+                    "dnf -v -y install centos-release-stream",
+                    "dnf -v -y swap centos-{linux,stream}-repos",
+                    "dnf -v -y distro-sync"
+                ]
+                }
+        },
+	    {
+	        "name": "python36",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "python36"
+		        ]
+	            }
+	    },
+	    {
+	        "name": "gcc",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "gcc"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "make",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "make"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "git",
+	        "type": "distro",
+	        "distro_info": {
+		        "packages": [
+		            "git"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "cpio",
+	        "type": "distro",
+	        "distro_info": {
+		    "packages": [
+		            "cpio"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "findutils",
+	        "type": "distro",
+	        "distro_info": {
+		    "packages": [
+		            "findutils"
+		        ]
+	        }
+	    },
+	    {
+	        "name": "hostname",
+	        "type": "distro",
+	        "distro_info": {
+		    "packages": [
+		            "hostname"
+		        ]
+	        }
+	    }
+    ]
+}
