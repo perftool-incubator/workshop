@@ -1,86 +1,177 @@
 {
-    "workshop": {
-	"schema": {
-	    "version": "2020.03.02"
-	}
+  "workshop": {
+    "schema": {
+      "version": "2020.03.02"
+    }
+  },
+  "userenv": {
+    "name": "fedora33",
+    "label": "Fedora 33",
+    "origin": {
+      "image": "registry.fedoraproject.org/fedora",
+      "tag": "33"
     },
-    "userenv": {
-	"name": "fedora33",
-	"label": "Fedora 33",
-	"origin": {
-	    "image": "registry.fedoraproject.org/fedora",
-	    "tag": "33"
-	},
-	"properties": {
-	    "packages": {
-		"type": "rpm",
-		"manager": "dnf"
-	    }
-	}
+    "properties": {
+      "packages": {
+        "type": "rpm",
+        "manager": "dnf"
+      }
+    }
+  },
+  "requirements": [
+    {
+      "name": "jq",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "jq"
+        ]
+      }
     },
-    "requirements": [
-	    {
-	        "name": "python36",
-	        "type": "distro",
-	        "distro_info": {
-		        "packages": [
-		            "python36"
-		        ]
-	            }
-	    },
-	    {
-	        "name": "gcc",
-	        "type": "distro",
-	        "distro_info": {
-		        "packages": [
-		            "gcc"
-		        ]
-	        }
-	    },
-	    {
-	        "name": "make",
-	        "type": "distro",
-	        "distro_info": {
-		        "packages": [
-		            "make"
-		        ]
-	        }
-	    },
-	    {
-	        "name": "git",
-	        "type": "distro",
-	        "distro_info": {
-		        "packages": [
-		            "git"
-		        ]
-	        }
-	    },
-	    {
-	        "name": "cpio",
-	        "type": "distro",
-	        "distro_info": {
-		    "packages": [
-		            "cpio"
-		        ]
-	        }
-	    },
-	    {
-	        "name": "findutils",
-	        "type": "distro",
-	        "distro_info": {
-		    "packages": [
-		            "findutils"
-		        ]
-	        }
-	    },
-	    {
-	        "name": "hostname",
-	        "type": "distro",
-	        "distro_info": {
-		    "packages": [
-		            "hostname"
-		        ]
-	        }
-	    }
-    ]
+    {
+      "name": "diffutils",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "diffutils"
+        ]
+      }
+    },
+    {
+      "name": "libtool",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "libtool"
+        ]
+      }
+    },
+    {
+      "name": "automake",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "automake"
+        ]
+      }
+    },
+    {
+      "name": "autoconf",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "autoconf"
+        ]
+      }
+    },
+    {
+      "name": "curl",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "curl"
+        ]
+      }
+    },
+    {
+      "name": "xz",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "xz"
+        ]
+      }
+    },
+    {
+      "name": "gzip",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "gzip"
+        ]
+      }
+    },
+    {
+      "name": "tar",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "tar"
+        ]
+      }
+    },
+    {
+      "name": "python3",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "python3",
+          "python3-pip"
+        ]
+      }
+    },
+    {
+      "name": "gcc",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "gcc"
+        ]
+      }
+    },
+    {
+      "name": "make",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "make"
+        ]
+      }
+    },
+    {
+      "name": "git",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "git"
+        ]
+      }
+    },
+    {
+      "name": "cpio",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "cpio"
+        ]
+      }
+    },
+    {
+      "name": "findutils",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "findutils"
+        ]
+      }
+    },
+    {
+      "name": "iputils",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "iputils"
+        ]
+      }
+    },
+    {
+      "name": "hostname",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "hostname"
+        ]
+      }
+    }
+  ]
 }
