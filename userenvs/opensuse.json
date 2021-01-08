@@ -20,43 +20,7 @@
   },
   "requirements": [
     {
-      "name": "iputils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "iputils"
-        ]
-      }
-    },
-    {
-      "name": "curl",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "curl"
-        ]
-      }
-    },
-    {
-      "name": "gzip",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "gzip"
-        ]
-      }
-    },
-    {
-      "name": "tar",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "tar"
-        ]
-      }
-    },
-    {
-      "name": "python36",
+      "name": "python3",
       "type": "distro",
       "distro_info": {
         "packages": [
@@ -66,74 +30,35 @@
       }
     },
     {
-      "name": "flex",
+      "name": "utils",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "flex"
+          "curl",
+          "tar",
+          "cpio",
+          "xz",
+          "gzip",
+          "jq",
+          "git",
+          "cpio",
+          "findutils",
+          "hostname",
+          "iputils"
         ]
       }
     },
     {
-      "name": "bison",
+      "name": "compiling",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "bison"
-        ]
-      }
-    },
-    {
-      "name": "gcc",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "gcc"
-        ]
-      }
-    },
-    {
-      "name": "make",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
+          "diffutils",
+          "gcc",
+          "libtool",
+          "autoconf",
+          "automake",
           "make"
-        ]
-      }
-    },
-    {
-      "name": "git",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "git"
-        ]
-      }
-    },
-    {
-      "name": "cpio",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "cpio"
-        ]
-      }
-    },
-    {
-      "name": "findutils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "findutils"
-        ]
-      }
-    },
-    {
-      "name": "hostname",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "hostname"
         ]
       }
     }
