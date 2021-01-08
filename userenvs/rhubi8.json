@@ -14,92 +14,11 @@
     "properties": {
       "packages": {
         "type": "rpm",
-        "manager": "dnf"
+        "manager": "yum"
       }
     }
   },
   "requirements": [
-    {
-      "name": "jq",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "jq"
-        ]
-      }
-    },
-    {
-      "name": "diffutils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "diffutils"
-        ]
-      }
-    },
-    {
-      "name": "libtool",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "libtool"
-        ]
-      }
-    },
-    {
-      "name": "automake",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "automake"
-        ]
-      }
-    },
-    {
-      "name": "autoconf",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "autoconf"
-        ]
-      }
-    },
-    {
-      "name": "curl",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "curl"
-        ]
-      }
-    },
-    {
-      "name": "xz",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "xz"
-        ]
-      }
-    },
-    {
-      "name": "gzip",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "gzip"
-        ]
-      }
-    },
-    {
-      "name": "tar",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "tar"
-        ]
-      }
-    },
     {
       "name": "python3",
       "type": "distro",
@@ -111,65 +30,35 @@
       }
     },
     {
-      "name": "gcc",
+      "name": "utils",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "gcc"
-        ]
-      }
-    },
-    {
-      "name": "make",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "make"
-        ]
-      }
-    },
-    {
-      "name": "git",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "git"
-        ]
-      }
-    },
-    {
-      "name": "cpio",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "cpio"
-        ]
-      }
-    },
-    {
-      "name": "findutils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "findutils"
-        ]
-      }
-    },
-    {
-      "name": "iputils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
+          "curl",
+          "tar",
+          "cpio",
+          "xz",
+          "gzip",
+          "jq",
+          "git",
+          "cpio",
+          "findutils",
+          "hostname",
           "iputils"
         ]
       }
     },
     {
-      "name": "hostname",
+      "name": "compiling",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "hostname"
+          "diffutils",
+          "gcc",
+          "libtool",
+          "autoconf",
+          "automake",
+          "make"
         ]
       }
     }

@@ -66,6 +66,24 @@
       }
     },
     {
+      "name": "flex",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "flex"
+        ]
+      }
+    },
+    {
+      "name": "bison",
+      "type": "distro",
+      "distro_info": {
+        "packages": [
+          "bison"
+        ]
+      }
+    },
+    {
       "name": "gcc",
       "type": "distro",
       "distro_info": {

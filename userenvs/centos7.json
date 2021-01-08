@@ -20,88 +20,6 @@
   },
   "requirements": [
     {
-      "name": "jq",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/o/oniguruma-6.8.2-1.el7.x86_64.rpm",
-          "https://download-ib01.fedoraproject.org/pub/epel/7/x86_64/Packages/j/jq-1.6-2.el7.x86_64.rpm"
-        ]
-      }
-    },
-    {
-      "name": "diffutils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "diffutils"
-        ]
-      }
-    },
-    {
-      "name": "libtool",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "libtool"
-        ]
-      }
-    },
-    {
-      "name": "automake",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "automake"
-        ]
-      }
-    },
-    {
-      "name": "autoconf",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "autoconf"
-        ]
-      }
-    },
-    {
-      "name": "curl",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "curl"
-        ]
-      }
-    },
-    {
-      "name": "xz",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "xz"
-        ]
-      }
-    },
-    {
-      "name": "gzip",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "gzip"
-        ]
-      }
-    },
-    {
-      "name": "tar",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "tar"
-        ]
-      }
-    },
-    {
       "name": "python3",
       "type": "distro",
       "distro_info": {
@@ -112,65 +30,44 @@
       }
     },
     {
-      "name": "gcc",
+      "name": "epel",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "gcc"
+          "epel-release"
         ]
       }
     },
     {
-      "name": "make",
+      "name": "utils",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "make"
-        ]
-      }
-    },
-    {
-      "name": "git",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "git"
-        ]
-      }
-    },
-    {
-      "name": "cpio",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "cpio"
-        ]
-      }
-    },
-    {
-      "name": "findutils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "findutils"
-        ]
-      }
-    },
-    {
-      "name": "iputils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
+          "curl",
+          "tar",
+          "cpio",
+          "xz",
+          "gzip",
+          "jq",
+          "git",
+          "cpio",
+          "findutils",
+          "hostname",
           "iputils"
         ]
       }
     },
     {
-      "name": "hostname",
+      "name": "compiling",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "hostname"
+          "diffutils",
+          "gcc",
+          "libtool",
+          "autoconf",
+          "automake",
+          "make"
         ]
       }
     }

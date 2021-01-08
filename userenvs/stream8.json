@@ -31,65 +31,30 @@
       }
     },
     {
-      "name": "python36",
+      "name": "python",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "python36"
+          "python3",
+          "python3-pip"
         ]
       }
     },
     {
-      "name": "gcc",
+      "name": "compiling",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "gcc"
+          "flex", "bison", "gcc", "libtool", "autoconf", "automake", "make"
         ]
       }
     },
     {
-      "name": "make",
+      "name": "utils",
       "type": "distro",
       "distro_info": {
         "packages": [
-          "make"
-        ]
-      }
-    },
-    {
-      "name": "git",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "git"
-        ]
-      }
-    },
-    {
-      "name": "cpio",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "cpio"
-        ]
-      }
-    },
-    {
-      "name": "findutils",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "findutils"
-        ]
-      }
-    },
-    {
-      "name": "hostname",
-      "type": "distro",
-      "distro_info": {
-        "packages": [
-          "hostname"
+          "tar", "cpio", "xz", "gzip", "jq", "git", "cpio", "findutils", "hostname", "iputils"
         ]
       }
     }
