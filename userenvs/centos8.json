@@ -44,7 +44,9 @@
           "cpio",
           "findutils",
           "hostname",
-          "iputils"
+          "iputils",
+          "iproute",
+          "procps-ng"
         ]
       }
     },
