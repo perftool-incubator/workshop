@@ -13,7 +13,7 @@ A requirement definition is usually provided by a project that wants to be usabl
 ## Details
 
 ### Definition Files
-The userenv and requirement definitions are JSON files that conform to the [schema](schema.json) that is part of this project.  Validation of the schema is performed by a tool called `json-validator` which is part of the sister project [junk-drawer](https://github.com/perftool-incubator/junk-drawer).
+The userenv and requirement definitions are JSON files that conform to the [schema](schema.json) that is part of this project.
 
 ### Running workshop
 Workshop has the following runtime behaviors:
