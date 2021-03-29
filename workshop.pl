@@ -270,16 +270,47 @@ sub logger {
     }
 
     if ($add_newline) {
-        print $prefix . $lines[$line_idx] . "\n";
+        if (@lines == 0) {
+            print $prefix . "\n";
+        } else {
+            print $prefix . $lines[$line_idx] . "\n";
+        }
     } else {
-        print $prefix . $lines[$line_idx];
+        if (@lines == 0) {
+            print $prefix;
+        } else {
+            print $prefix . $lines[$line_idx];
+        }
     }
+}
+
+sub usage {
+    logger("info", "\n");
+    logger("info", "Usage: " . __FILE__ . " --userenv <file> [<optional arguments>]\n");
+    logger("info", "\n");
+    logger("info", "Required arguments:\n");
+    logger("info", "\n");
+    logger("info", "--userenv <file>                    User environment file\n");
+    logger("info", "\n");
+    logger("info", "Optional arguments: (* denotes default)\n");
+    logger("info", "\n");
+    logger("info", "--requirements <file>               Requirements file (can be used multiple times)\n");
+    logger("info", "--label <string>                    Label to apply to container image\n");
+    logger("info", "--config <file>                     Container config file\n");
+    logger("info", "--log-level <info*|verbose|debug>   Control logging output\n");
+    logger("info", "--skip-update <true|false*>         Should the container run it's distro update function\n");
+    logger("info", "--force <true|false*>               Force the container build\n");
+    logger("info", "--dump-config <true|false*>         Dump the config instead of building the container\n");
+    logger("info", "\n");
 }
 
 sub arg_handler {
     my ($opt_name, $opt_value) = @_;
 
-    if ($opt_name eq "completions") {
+    if ($opt_name eq "help") {
+        usage();
+        exit();
+    } elsif ($opt_name eq "completions") {
         $args{$opt_name} = 1;
 
         if ($opt_value eq 'all') {
@@ -366,16 +397,19 @@ sub arg_handler {
     }
 }
 
-GetOptions("completions=s" => \&arg_handler,
-           "config=s" => \&arg_handler,
-           "log-level=s" => \&arg_handler,
-           "requirements=s" => \&arg_handler,
-           "skip-update=s" => \&arg_handler,
-           "force=s" => \&arg_handler,
-           "userenv=s" => \&arg_handler,
-           "label=s" => \&arg_handler,
-           "dump-config=s" => \&arg_handler)
-    or die("Error in command line arguments");
+if (!GetOptions("completions=s" => \&arg_handler,
+                "config=s" => \&arg_handler,
+                "log-level=s" => \&arg_handler,
+                "requirements=s" => \&arg_handler,
+                "skip-update=s" => \&arg_handler,
+                "force=s" => \&arg_handler,
+                "userenv=s" => \&arg_handler,
+                "label=s" => \&arg_handler,
+                "help" => \&arg_handler,
+                "dump-config=s" => \&arg_handler,)) {
+    usage();
+    die("Error in command line arguments");
+}
 
 logger('debug', "Argument Hash:\n");
 logger('debug', Dumper(\%args));
@@ -386,6 +420,7 @@ if (exists($args{'completions'})) {
 
 if (! exists $args{'userenv'}) {
     logger('error', "You must provide --userenv!\n");
+    usage();
     exit(get_exit_code('no_userenv'));
 }
 
