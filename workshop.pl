@@ -33,6 +33,7 @@ $args{'log-level'} = 'info';
 $args{'skip-update'} = 'false';
 $args{'force'} = 'false';
 $args{'dump-config'} = 'false';
+$args{'param'} = {};
 
 my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
@@ -196,6 +197,22 @@ sub compare_requirement_definition {
     return 0;
 }
 
+sub param_replacement {
+    my ($input, $indent) = @_;
+
+    my $str = $input;
+
+    foreach my $key (keys %{$args{'param'}}) {
+        logger('verbose', "checking for presence of '" . $key . "' in '" . $str . "'\n");
+        if ($str =~ m/$key/) {
+            logger('info', "replacing '" . $key . "' with '" . $args{'param'}{$key} . "' in '" . $str . "'\n", $indent);
+            $str =~ s/$key/$args{'param'}{$key}/;
+        }
+    }
+
+    return ($str);
+}
+
 sub run_command {
     my ($command) = @_;
 
@@ -301,6 +318,7 @@ sub usage {
     logger("info", "--skip-update <true|false*>         Should the container run it's distro update function\n");
     logger("info", "--force <true|false*>               Force the container build\n");
     logger("info", "--dump-config <true|false*>         Dump the config instead of building the container\n");
+    logger("info", "--param <key>=<value>               When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
     logger("info", "\n");
 }
 
@@ -392,6 +410,18 @@ sub arg_handler {
         } else {
             die("--dump-config must be one of 'true' or 'false' [not '$opt_value']");
         }
+    } elsif ($opt_name eq "param") {
+        my $key = "";
+        my $value = "";
+        if ($opt_value =~ m/(.+)=(.+)/) {
+            $key = $1;
+            $value = $2;
+        }
+        if (($key eq "") || ($value eq "")) {
+            die("--param must have a <key>=<value> parameter following it [not '$opt_value']");
+        } else {
+            $args{'param'}{$key} = $value;
+        }
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -406,6 +436,7 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "userenv=s" => \&arg_handler,
                 "label=s" => \&arg_handler,
                 "help" => \&arg_handler,
+                "param=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,)) {
     usage();
     die("Error in command line arguments");
@@ -1091,6 +1122,10 @@ if (opendir(NORMAL_ROOT, "/")) {
                     my $rc;
 
                     foreach my $file (@{$req->{'files_info'}{'files'}}) {
+                        $file->{'src'} = param_replacement($file->{'src'}, 2);
+                        if (exists($file->{'dst'})) {
+                            $file->{'dst'} = param_replacement($file->{'dst'}, 2);
+                        }
                         logger('info', "copying '$file->{'src'}'...\n", 2);
 
                         if (exists($file->{'dst'})) {
