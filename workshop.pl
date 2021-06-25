@@ -22,6 +22,17 @@ $Data::Dumper::Pair = ' : ';
 $Data::Dumper::Useqq = 1;
 $Data::Dumper::Indent = 1;
 
+BEGIN {
+    if (!(exists $ENV{'TOOLBOX_HOME'} && -d "$ENV{'TOOLBOX_HOME'}/perl")) {
+        print "This script requires libraries that are provided by the toolbox project.\n";
+        print "Toolbox can be acquired from https://github.com/perftool-incubator/toolbox and\n";
+        print "then use 'export TOOLBOX_HOME=/path/to/toolbox' so that it can be located.\n";
+        exit 1;
+    }
+}
+use lib "$ENV{'TOOLBOX_HOME'}/perl";
+use toolbox::json;
+
 # disable output buffering
 $|++;
 
@@ -66,7 +77,7 @@ sub get_exit_code {
         'config_set_cmd' => 2,
         'schema_not_found' => 3,
         'userenv_failed_validation' => 4,
-        'failing_opening_userenv' => 5,
+        'failed_opening_userenv' => 5,
         'requirement_failed_validation' => 6,
         'failed_opening_requirement' => 7,
         'userenv_missing' => 8,
@@ -111,13 +122,22 @@ sub get_exit_code {
         'config_annotate_fail' => 47,
         'get_config_version' => 48,
         'coro_failure' => 49,
-        'failing_opening_config' => 50,
+        'failed_opening_config' => 50,
         'config_set_entrypoint' => 51,
         'config_set_author' => 52,
         'config_set_annotation' => 53,
         'config_set_env' => 54,
         'config_set_port' => 55,
-        'config_set_label' => 56
+        'config_set_label' => 56,
+        'schema_invalid_json' => 57,
+        'userenv_invalid_json' => 58,
+        'requirement_invalid_json' => 59,
+        'config_invalid_json' => 60,
+        'userenv_not_found' => 61,
+        'requirement_not_found' => 62,
+        'config_not_found' => 63,
+        'requirement_missing' => 64,
+        'config_missing' => 65
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -356,25 +376,12 @@ sub arg_handler {
         $args{'label'} = $opt_value;
     } elsif ($opt_name eq "config") {
         $args{'config'} = $opt_value;
-
-        if (! -e $args{'config'}) {
-            die("--config must be a valid file [not '$args{'config'}']");
-        }
     } elsif ($opt_name eq "userenv") {
         $args{'userenv'} = $opt_value;
-
-        if (! -e $args{'userenv'}) {
-            die("--userenv must be a valid file [not '$args{'userenv'}']");
-        }
     } elsif ($opt_name eq "requirements") {
         if (! exists $args{'reqs'}) {
             $args{'reqs'} = ();
         }
-
-        if (! -e $opt_value) {
-            die("--requirements must be a valid file [not '$opt_value']");
-        }
-
         push(@{$args{'reqs'}}, $opt_value);
     } elsif ($opt_name eq "skip-update") {
         if (exists ($update_options{$opt_value})) {
@@ -455,55 +462,45 @@ if (! exists $args{'userenv'}) {
     exit(get_exit_code('no_userenv'));
 }
 
-my $json_v;
-
-my $userenv_json;
-
 my $command;
 my $command_output;
-my $rc;
-
 my $dirname = dirname(__FILE__);
 my $schema_location = $dirname . "/schema.json";
-if (! -e $schema_location) {
-    logger('error', "Failed to locate schema.json (assumed location is '$schema_location')\n");
-    exit(get_exit_code('schema_not_found'));
-} else {
-    logger('info', "Using '$schema_location' for JSON input file schema validation\n");
 
-    $json_v = JSON::Validator->new;
-    $json_v->schema($schema_location);
-}
-
+logger('info', "Using '$schema_location' for JSON input file schema validation\n");
 logger('info', "Loading userenv definition from '$args{'userenv'}'...\n");
-
 logger('info', "importing JSON...\n", 1);
-if (open(my $userenv_fh, "<", $args{'userenv'})) {
-    my $file_contents;
-    while(<$userenv_fh>) {
-        $file_contents .= $_;
+
+(my $rc, my $userenv_json) = get_json_file($args{'userenv'}, $schema_location);
+if ($rc == 0 and defined $userenv_json) {
+    logger('info', "succeeded\n", 2);
+} else {
+    logger('info', "failed\n", 2);
+    if ($rc == 2) {
+        logger('error', "Schema file $schema_location not found!\n");
+        exit(get_exit_code('schema_not_found'));
+    } elsif ($rc == 3) {
+        logger('error', "Cannot open schema file: $schema_location\n");
+        exit(get_exit_code('failed_opening_schema'));
+    } elsif ($rc == 4) {
+        logger('error', "Schema $schema_location is invalid JSON!\n");
+        exit(get_exit_code('schema_invalid_json'));
+    } elsif ($rc == 5) {
+        logger('error', "Schema validation for userenv $args{'userenv'} using schema '$schema_location' failed!\n");
+        exit(get_exit_code('userenv_failed_validation'));
+    } elsif ($rc == 6) {
+        logger('error', "Userenv $args{'userenv'} is invalid JSON!\n");
+        exit(get_exit_code('userenv_invalid_json'));
+    } elsif ($rc == 8) {
+        logger('error', "Userenv file $args{'userenv'} not found\n");
+        exit(get_exit_code('userenv_missing'));
+    } elsif ($rc == 9) {
+        logger('error', "Userenv file $args{'userenv'} open failed\n");
+        exit(get_exit_code('failed_opening_userenv'));
+    } else {
+        logger('error', "Unkown error: $rc'\n");
+        exit(get_exit_code('failed_opening_userenv'));
     }
-
-    $userenv_json = decode_json($file_contents);
-
-    close($userenv_fh);
-
-    logger('info', "succeeded\n", 2);
-} else {
-    logger('info', "failed\n", 2);
-    logger('error', "Could not open userenv file '$args{'userenv'}' for reading!\n");
-    exit(get_exit_code('failing_opening_userenv'));
-}
-
-logger('info', "validating JSON...\n", 1);
-my @json_v_errors = $json_v->validate($userenv_json);
-if (scalar(@json_v_errors) > 0) {
-    logger('info', "failed\n", 2);
-    logger('error', "Could not JSON validate the userenv file '$args{'userenv'}'!\n");
-    logger('error', Dumper(\@json_v_errors));
-    exit(get_exit_code('userenv_failed_validation'));
-} else {
-    logger('info', "succeeded\n", 2);
 }
 
 logger('info', "calculating sha256...\n", 1);
@@ -541,35 +538,37 @@ foreach my $req (@{$args{'reqs'}}) {
     logger('info', "'$req'...\n", 1);
 
     my $tmp_req = {};
-
     logger('info', "importing JSON...\n", 2);
-    if (open(my $req_fh, "<", $req)) {
-        my $file_contents;
-        while(<$req_fh>) {
-            $file_contents .= $_;
-        }
+    (my $rc, $tmp_req->{'json'}) = get_json_file($req, $schema_location);
 
+    if ($rc == 0 and defined $tmp_req->{'json'}) {
         $tmp_req->{'filename'} = $req;
-        $tmp_req->{'json'} = decode_json($file_contents);
-
-        close($req_fh);
-
         logger('info', "succeeded\n", 3);
     } else {
         logger('info', "failed\n", 3);
-        logger('error', "Failed to load requirement file '$req'!\n");
-        exit(get_exit_code('failed_opening_requirement'));
-    }
-
-    logger('info', "validating JSON...\n", 2);
-    my @json_v_errors = $json_v->validate($tmp_req->{'json'});
-    if (scalar(@json_v_errors) > 0) {
-        logger('info', "failed\n", 3);
-        logger('error', "Could not JSON validate the requirement file '$req'!\n");
-        logger('error', Dumper(\@json_v_errors));
-        exit(get_exit_code('requirement_failed_validation'));
-    } else {
-        logger('info', "succeeded\n", 3);
+        #logger('error', "Failed to load requirement file '$req'!\n");
+        if ($rc == 2) {
+            logger('error', "Schema file '$schema_location' not found!\n");
+            exit(get_exit_code('schema_not_found'));
+        } elsif ($rc == 3) {
+            logger('error', "Cannot open schema file: '$schema_location'\n");
+            exit(get_exit_code('failed_opening_schema'));
+        } elsif ($rc == 4) {
+            logger('error', "Schema '$schema_location' is invalid JSON!\n");
+            exit(get_exit_code('schema_invalid_json'));
+        } elsif ($rc == 5) {
+            logger('error', "Schema validation for '$req' using schema '$schema_location' failed!\n");
+            exit(get_exit_code('requirement_failed_validation'));
+        } elsif ($rc == 6) {
+            logger('error', "Requirement '$req' is invalid JSON!\n");
+            exit(get_exit_code('requirement_invalid_json'));
+        } elsif ($rc == 8) {
+            logger('error', "Requirement file '$req' not found\n");
+            exit(get_exit_code('requirement_missing'));
+        } else {
+            logger('error', "Unkown error'\n");
+            exit(get_exit_code('failed_opening_requirement'));
+        }
     }
 
     push(@all_requirements, $tmp_req);
@@ -694,32 +693,36 @@ if (exists($args{'config'})) {
     logger('info', "Loading config definition from '$args{'config'}'...\n");
 
     logger('info', "importing JSON...\n", 1);
-    if (open(my $config_fh, "<", $args{'config'})) {
-        my $file_contents;
-        while(<$config_fh>) {
-            $file_contents .= $_;
+    (my $rc, $config_json) = get_json_file($args{'config'}, $schema_location);
+    if ($rc == 0 and defined $config_json) {
+        logger('info', "succeeded\n", 2);
+    } else {
+        logger('info', "failed\n", 2);
+        if ($rc == 2) {
+            logger('error', "Schema file '$schema_location' not found!\n");
+            exit(get_exit_code('schema_not_found'));
+        } elsif ($rc == 3) {
+            logger('error', "Cannot open schema file: '$schema_location'\n");
+            exit(get_exit_code('failed_opening_schema'));
+        } elsif ($rc == 4) {
+            logger('error', "Schema '$schema_location' is invalid JSON!\n");
+            exit(get_exit_code('schema_invalid_json'));
+        } elsif ($rc == 5) {
+            logger('error', "Schema validation for userenv '$args{'config'}' using schema '$schema_location' failed!\n");
+            exit(get_exit_code('config_failed_validation'));
+        } elsif ($rc == 6) {
+            logger('error', "Config '$args{'config'}' is invalid JSON!\n");
+            exit(get_exit_code('config_invalid_json'));
+        } elsif ($rc == 8) {
+            logger('error', "Config file '$args{'userenv'}' not found\n");
+            exit(get_exit_code('config_missing'));
+        } elsif ($rc == 9) {
+            logger('error', "Config file '$args{'userenv'} open failed'\n");
+            exit(get_exit_code('failed_opening_config'));
+        } else {
+            logger('error', "Unkown error'\n");
+            exit(get_exit_code('failed_opening_config'));
         }
-
-        $config_json = decode_json($file_contents);
-
-        close($config_fh);
-
-        logger('info', "succeeded\n", 2);
-    } else {
-        logger('info', "failed\n", 2);
-        logger('error', "Could not open config file '$args{'config'} for reading!\n");
-        exit(get_exit_code('failing_opening_config'));
-    }
-
-    logger('info', "validating JSON...\n", 1);
-    my @json_v_errors = $json_v->validate($config_json);
-    if (scalar(@json_v_errors) > 0) {
-        logger('info', "failed\n", 2);
-        logger('error', "Could not JSON validate the config file '$args{'config'}'!\n");
-        logger('error', Dumper(\@json_v_errors));
-        exit(get_exit_code('config_failed_validation'));
-    } else {
-        logger('info', "succeeded\n", 2);
     }
 
     logger('info', "calculating sha256...\n", 1);
