@@ -1,0 +1,35 @@
+name: workshop-ci
+
+on:
+  # run on pull request events for the master branch only
+  pull_request:
+    branches: [ master ]
+
+  # allow for manual invocation from the actions tab
+  workflow_dispatch:
+
+jobs:
+  workshop-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install Perl Dependencies
+      run: |
+        sudo apt install libcoro-perl libjson-perl libjson-xs-perl libjson-validator-perl libdata-uuid-perl libdigest-sha-perl libcompress-raw-lzma-perl libcompress-raw-zlib-perl libcompress-raw-bzip2-perl cpanminus
+        echo
+        sudo cpanm IO::Uncompress::UnXz IO::Compress::Xz
+
+    - name: Install Toolbox
+      run: |
+        pushd ~/
+        git clone https://github.com/perftool-incubator/toolbox.git
+
+    - name: Run workshop
+      run: |
+        export TOOLBOX_HOME=~/toolbox
+        echo
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci --userenv ./userenvs/fedora31.json --dump-config true
+        echo
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci --userenv ./userenvs/fedora31.json --log-level verbose
