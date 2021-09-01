@@ -1249,20 +1249,23 @@ if (opendir(NORMAL_ROOT, "/")) {
                     logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
 
                     if (chdir('/root')) {
+                        my $build_cmd_log = "";
                         logger('info', "downloading...\n", 3);
                         ($command, $command_output, $rc) = run_command("curl --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
+                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                         if ($rc == 0) {
                             logger('info', "getting directory...\n", 3);
                             ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
+                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                             my $get_dir = $command_output;
                             chomp($get_dir);
                             if ($rc == 0) {
                                 logger('info', "unpacking...\n", 3);
                                 ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'unpack'}");
+                                $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                                 if ($rc == 0) {
                                     if (chdir($get_dir)) {
                                         logger('info', "building...\n", 3);
-                                        my $build_cmd_log = "";
                                         foreach my $build_cmd (@{$req->{'source_info'}{'commands'}{'commands'}}) {
                                             logger('info', "executing '$build_cmd'...\n", 4);
                                             ($command, $command_output, $rc) = run_command("$build_cmd");
