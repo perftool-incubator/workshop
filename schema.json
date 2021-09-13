@@ -267,6 +267,123 @@
 			],
 			"additionalProperties": false
 		    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "python3"
+                                ]
+                            },
+                            "python3_info": {
+                                "type": "object",
+                                "properties": {
+                                    "packages": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "uniqueItems": true,
+                                        "items": {
+                                            "type": "string",
+                                            "minLength": 1
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "packages"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "type",
+                            "python3_info"
+                        ],
+                        "additionalProperties": false
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "node"
+                                ]
+                            },
+                            "node_info": {
+                                "type": "object",
+                                "properties": {
+                                    "packages": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "uniqueItems": true,
+                                        "items": {
+                                            "type": "string",
+                                            "minLength": 1
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "packages"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "type",
+                            "node_info"
+                        ],
+                        "additionalProperties": false
+                    },
+		    {
+			"type": "object",
+			"properties": {
+			    "name": {
+				"type": "string",
+				"minLength": 1
+			    },
+			    "type": {
+				"type": "string",
+				"enum": [
+				    "cpan"
+				]
+			    },
+			    "cpan_info": {
+				"type": "object",
+				"properties": {
+				    "packages": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+					    "type": "string",
+					    "minLength": 1
+					}
+				    }
+				},
+				"required": [
+				    "packages"
+				],
+				"additionalProperties": false
+			    }
+			},
+			"required": [
+			    "name",
+			    "type",
+			    "cpan_info"
+			],
+			"additionalProperties": false
+		    },
 		    {
 			"type": "object",
 			"properties": {

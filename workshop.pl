@@ -137,7 +137,10 @@ sub get_exit_code {
         'requirement_not_found' => 62,
         'config_not_found' => 63,
         'requirement_missing' => 64,
-        'config_missing' => 65
+        'config_missing' => 65,
+        'cpanm_install_failed' => 70,
+        'python3_install_failed' => 80,
+        'npm_install_failed' => 90
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -1331,6 +1334,60 @@ if (opendir(NORMAL_ROOT, "/")) {
                     }
                     logger('info', "succeeded\n", 2);
                     logger('verbose', $install_cmd_log);
+                } elsif ($req->{'type'} eq 'cpan') {
+                    logger('info', "installing package via cpan...\n", 2);
+
+                    my $cpan_install_log = "";
+                    foreach my $cpan_package (@{$req->{'cpan_info'}{'packages'}}) {
+                        logger('info', "cpan installing '$cpan_package'...\n", 3);
+                        ($command, $command_output, $rc) = run_command("cpanm $cpan_package");
+                        $cpan_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                        if ($rc != 0){
+                            logger('info', "failed [rc=$rc]\n", 4);
+                            logger('error', $cpan_install_log);
+                            logger('error', "Failed to cpan install perl package '$cpan_package'\n");
+                            quit_files_coro($files_requirements_present, $files_channel);
+                            exit(get_exit_code('cpanm_install_failed'));
+                        }
+                    }
+                    logger('info', "succeeded\n", 2);
+                    logger('verbose', $cpan_install_log);
+                  } elsif ($req->{'type'} eq 'node') {
+                      logger('info', "installing package via npm install...\n", 2);
+ 
+                      my $npm_install_log = "";
+                      foreach my $node_package (@{$req->{'node_info'}{'packages'}}) {
+                          logger('info', "npm installing '$node_package'...\n", 3);
+                          ($command, $command_output, $rc) = run_command("npm install $node_package");
+                          $npm_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                          if ($rc != 0){
+                              logger('info', "failed [rc=$rc]\n", 4);
+                              logger('error', $npm_install_log);
+                              logger('error', "Failed to npm install node package '$node_package'\n");
+                              quit_files_coro($files_requirements_present, $files_channel);
+                              exit(get_exit_code('npm_install_failed'));
+                          }
+                      }
+                      logger('info', "succeeded\n", 2);
+                      logger('verbose', $npm_install_log);
+                  } elsif ($req->{'type'} eq 'python3') {
+                      logger('info', "installing package via python3 pip...\n", 2);
+
+                      my $python3_install_log = "";
+                      foreach my $python3_package (@{$req->{'python3_info'}{'packages'}}) {
+                          logger('info', "python3 pip installing '$python3_package'...\n", 3);
+                          ($command, $command_output, $rc) = run_command("/usr/bin/python3 -m pip install $python3_package");
+                          $python3_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                          if ($rc != 0){
+                              logger('info', "failed [rc=$rc]\n", 4);
+                              logger('error', $python3_install_log);
+                              logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
+                              quit_files_coro($files_requirements_present, $files_channel);
+                              exit(get_exit_code('python3_install_failed'));
+                          }
+                      }
+                      logger('info', "succeeded\n", 2);
+                      logger('verbose', $python3_install_log);
                 }
             }
 
