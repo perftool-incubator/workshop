@@ -140,7 +140,8 @@ sub get_exit_code {
         'config_missing' => 65,
         'cpanm_install_failed' => 70,
         'python3_install_failed' => 80,
-        'npm_install_failed' => 90
+        'npm_install_failed' => 90,
+        'requirement_definition_missing' => 91
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -617,6 +618,7 @@ foreach my $tmp_req (@all_requirements) {
 
     foreach my $req (@{$tmp_req->{'json'}{'userenvs'}[$userenv_idx]{'requirements'}}) {
         my %local_requirements;
+        my $found_req = 0;
 
         for (my $i=0; $i<scalar(@{$tmp_req->{'json'}{'requirements'}}); $i++) {
             if (exists($local_requirements{$tmp_req->{'json'}{'requirements'}[$i]{'name'}})) {
@@ -628,6 +630,8 @@ foreach my $tmp_req (@all_requirements) {
             }
 
             if ($req eq $tmp_req->{'json'}{'requirements'}[$i]{'name'}) {
+                $found_req = 1;
+
                 if (exists($active_requirements{'hash'}{$tmp_req->{'json'}{'requirements'}[$i]{'name'}})) {
                     if (compare_requirement_definition($tmp_req->{'json'}{'requirements'}[$i],
                                                        $active_requirements{'array'}[$active_requirements{'hash'}{$tmp_req->{'json'}{'requirements'}[$i]{'name'}}{'array_index'}])) {
@@ -664,6 +668,12 @@ foreach my $tmp_req (@all_requirements) {
                                                                                                      'array_index' => $insert_index };
                 }
             }
+        }
+
+        if ($found_req == 0) {
+            logger('info', "failed\n", 2);
+            logger('error', "Could not find requirement definition '$req' for userenv '$tmp_req->{'json'}{'userenvs'}[$userenv_idx]{'name'}'!\n");
+            exit(get_exit_code('requirement_definition_missing'));
         }
     }
 
