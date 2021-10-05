@@ -44,13 +44,15 @@ $args{'log-level'} = 'info';
 $args{'skip-update'} = 'false';
 $args{'force'} = 'false';
 $args{'dump-config'} = 'false';
+$args{'dump-files'} = 'false';
 $args{'param'} = {};
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
 my %dump_config_options = ( 'true' => 1, 'false' => 1);
+my %dump_files_options = ( 'true' => 1, 'false' => 1);
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -342,6 +344,7 @@ sub usage {
     logger("info", "--skip-update <true|false*>         Should the container run it's distro update function\n");
     logger("info", "--force <true|false*>               Force the container build\n");
     logger("info", "--dump-config <true|false*>         Dump the config instead of building the container\n");
+    logger("info", "--dump-files <true|false*>          Dump the files that are being manually handled\n");
     logger("info", "--param <key>=<value>               When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
     logger("info", "\n");
 }
@@ -421,6 +424,12 @@ sub arg_handler {
         } else {
             die("--dump-config must be one of 'true' or 'false' [not '$opt_value']");
         }
+    } elsif ($opt_name eq "dump-files") {
+        if (exists ($dump_files_options{$opt_value})) {
+            $args{'dump-files'} = $opt_value;
+        } else {
+            die("--dump-files must be one of 'true' or 'false' [not '$opt_value']");
+        }
     } elsif ($opt_name eq "param") {
         my $key = "";
         my $value = "";
@@ -448,7 +457,8 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "label=s" => \&arg_handler,
                 "help" => \&arg_handler,
                 "param=s" => \&arg_handler,
-                "dump-config=s" => \&arg_handler,)) {
+                "dump-config=s" => \&arg_handler,
+                "dump-files=s" => \&arg_handler)) {
     usage();
     die("Error in command line arguments");
 }
@@ -767,6 +777,20 @@ if ($args{'dump-config'} eq 'true') {
     }
 
     logger('info', Data::Dumper->Dump([\%config_dump], [qw(*config_dump)]));
+
+    exit()
+}
+
+if ($args{'dump-files'} eq 'true') {
+    logger('info', "Files dump:\n");
+
+    foreach my $req (@{$active_requirements{'array'}}) {
+        if ($req->{'type'} eq 'files') {
+            foreach my $file (@{$req->{'files_info'}{'files'}}) {
+                printf "%s\n", param_replacement($file->{'src'}, 0);
+            }
+        }
+    }
 
     exit()
 }
