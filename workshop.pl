@@ -1319,27 +1319,28 @@ if (opendir(NORMAL_ROOT, "/")) {
                                         logger('verbose', $build_cmd_log);
                                     } else {
                                         logger('info', "failed\n", 3);
+                                        logger('error', $build_cmd_log);
                                         logger('error', "Could not chdir to '$get_dir'!\n");
                                         quit_files_coro($files_requirements_present, $files_channel);
                                         exit(get_exit_code('chdir_failed'));
                                     }
                                 } else {
                                     logger('info', "failed\n", 3);
-                                    command_logger('error', $command, $rc, $command_output);
+                                    logger('error', $build_cmd_log);
                                     logger('error', "Could not unpack source package!\n");
                                     quit_files_coro($files_requirements_present, $files_channel);
                                     exit(get_exit_code('unpack_failed'));
                                 }
                             } else {
                                 logger('info', "failed\n", 3);
-                                command_logger('error', $command, $rc, $command_output);
+                                logger('error', $build_cmd_log);
                                 logger('error', "Could not get unpack directory!\n");
                                 quit_files_coro($files_requirements_present, $files_channel);
                                 exit(get_exit_code('unpack_dir_not_found'));
                             }
                         } else {
                             logger('info', "failed\n", 3);
-                            command_logger('error', $command, $rc, $command_output);
+                            logger('error', $build_cmd_log);
                             logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
                             quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('download_failed'));
