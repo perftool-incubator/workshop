@@ -619,7 +619,7 @@ foreach my $tmp_req (@all_requirements) {
     if ($userenv_idx == -1) {
         if ($userenv_default_idx == -1) {
             logger('info', "failed\n", 2);
-            logger('error', "Could not find appropriate userenv match in requirements '$tmp_req->{'name'}' for '$userenv_json->{'userenv'}{'label'}'!\n");
+            logger('error', "Could not find appropriate userenv match in requirements '$tmp_req->{'filename'}' for '$userenv_json->{'userenv'}{'label'}'!\n");
             exit(get_exit_code('userenv_missing'));
         } else {
             $userenv_idx = $userenv_default_idx;
