@@ -481,27 +481,6 @@ if (! exists $args{'userenv'}) {
     exit(get_exit_code('no_userenv'));
 }
 
-if (!defined $args{'proj'}) {
-    if (defined $args{'label'}) {
-        # Support default behavior before --proj was introduced
-        $args{'proj'} = "localhost/workshop";
-        $args{'label'} = $args{'userenv'} . "_" . $args{'label'};
-    } else {
-        logger('error', "You must provide --label!\n");
-        usage();
-        exit(get_exit_code('no_label'));
-    }
-} else {
-    if (!defined $args{'label'}) {
-        logger('error', "You must provide --label!\n");
-        usage();
-        exit(get_exit_code('no_label'));
-    }
-}
-if (!defined $args{'tag'}) {
-    $args{'tag'} = "latest";
-}
-
 my $command;
 my $command_output;
 my $dirname = dirname(__FILE__);
@@ -541,6 +520,27 @@ if ($rc == 0 and defined $userenv_json) {
         logger('error', "Unkown error: $rc'\n");
         exit(get_exit_code('failed_opening_userenv'));
     }
+}
+
+if (!defined $args{'proj'}) {
+    if (defined $args{'label'}) {
+        # Support default behavior before --proj was introduced
+        $args{'proj'} = "localhost/workshop";
+        $args{'label'} = $userenv_json->{'userenv'}{'name'} . "_" . $args{'label'};
+    } else {
+        logger('error', "You must provide --label!\n");
+        usage();
+        exit(get_exit_code('no_label'));
+    }
+} else {
+    if (!defined $args{'label'}) {
+        logger('error', "You must provide --label!\n");
+        usage();
+        exit(get_exit_code('no_label'));
+    }
+}
+if (!defined $args{'tag'}) {
+    $args{'tag'} = "latest";
 }
 
 logger('info', "calculating sha256...\n", 1);
