@@ -44,9 +44,6 @@ $args{'skip-update'} = 'false';
 $args{'force'} = 'false';
 $args{'dump-config'} = 'false';
 $args{'dump-files'} = 'false';
-$args{'proj'} = "localhost/workshop";
-$args{'label'} = "client-server";
-$args{'tag'} = "latest";
 $args{'param'} = {};
 
 my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files' );
@@ -482,6 +479,27 @@ if (! exists $args{'userenv'}) {
     logger('error', "You must provide --userenv!\n");
     usage();
     exit(get_exit_code('no_userenv'));
+}
+
+if (!defined $args{'proj'}) {
+    if (defined $args{'label'}) {
+        # Support default behavior before --proj was introduced
+        $args{'proj'} = "localhost/workshop";
+        $args{'label'} = $args{'userenv'} . "_" . $args{'label'};
+    } else {
+        logger('error', "You must provide --label!\n");
+        usage();
+        exit(get_exit_code('no_label'));
+    }
+} else {
+    if (!defined $args{'label'}) {
+        logger('error', "You must provide --label!\n");
+        usage();
+        exit(get_exit_code('no_label'));
+    }
+}
+if (!defined $args{'tag'}) {
+    $args{'tag'} = "latest";
 }
 
 my $command;
