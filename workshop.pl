@@ -142,7 +142,8 @@ sub get_exit_code {
         'cpanm_install_failed' => 70,
         'python3_install_failed' => 80,
         'npm_install_failed' => 90,
-        'requirement_definition_missing' => 91
+        'requirement_definition_missing' => 91,
+        'no_label' => 92
         );
 
     if (exists($reasons{$exit_reason})) {
