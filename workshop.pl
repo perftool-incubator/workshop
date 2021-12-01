@@ -36,7 +36,6 @@ use toolbox::json;
 # disable output buffering
 $|++;
 
-my $me = "workshop";
 my $indent = "    ";
 
 my %args;
@@ -143,7 +142,8 @@ sub get_exit_code {
         'cpanm_install_failed' => 70,
         'python3_install_failed' => 80,
         'npm_install_failed' => 90,
-        'requirement_definition_missing' => 91
+        'requirement_definition_missing' => 91,
+        'no_label' => 92
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -381,6 +381,10 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
+    } elsif ($opt_name eq "tag") {
+        $args{'tag'} = $opt_value;
+    } elsif ($opt_name eq "proj") {
+        $args{'proj'} = $opt_value;
     } elsif ($opt_name eq "config") {
         $args{'config'} = $opt_value;
     } elsif ($opt_name eq "userenv") {
@@ -455,6 +459,8 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "force=s" => \&arg_handler,
                 "userenv=s" => \&arg_handler,
                 "label=s" => \&arg_handler,
+                "tag=s" => \&arg_handler,
+                "proj=s" => \&arg_handler,
                 "help" => \&arg_handler,
                 "param=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,
@@ -515,6 +521,27 @@ if ($rc == 0 and defined $userenv_json) {
         logger('error', "Unkown error: $rc'\n");
         exit(get_exit_code('failed_opening_userenv'));
     }
+}
+
+if (!defined $args{'proj'}) {
+    if (defined $args{'label'}) {
+        # Support default behavior before --proj was introduced
+        $args{'proj'} = "localhost/workshop";
+        $args{'label'} = $userenv_json->{'userenv'}{'name'} . "_" . $args{'label'};
+    } else {
+        logger('error', "You must provide --label!\n");
+        usage();
+        exit(get_exit_code('no_label'));
+    }
+} else {
+    if (!defined $args{'label'}) {
+        logger('error', "You must provide --label!\n");
+        usage();
+        exit(get_exit_code('no_label'));
+    }
+}
+if (!defined $args{'tag'}) {
+    $args{'tag'} = "latest";
 }
 
 logger('info', "calculating sha256...\n", 1);
@@ -865,23 +892,20 @@ logger('debug', "The sha256 for the image configuration is '$config_checksum'\n"
 logger('debug', "Checksum Array:\n");
 logger('debug', Dumper(\@checksums));
 
-my $tmp_container = $userenv_json->{'userenv'}{'name'};
-if (defined $args{'label'}) {
-    $tmp_container .= "_" . $args{'label'};
-}
+my $tmp_container = $args{'proj'} . "/" . $args{'label'} . ":" . $args{'tag'};
 
 my $remove_image = 0;
 
 # cleanup an existing container image that we are going to replace, if it exists
 logger('info', "Checking if container image already exists...\n");
-($command, $command_output, $rc) = run_command("buildah images --json localhost/$me/$tmp_container");
+($command, $command_output, $rc) = run_command("buildah images --json $tmp_container");
 if ($rc == 0) {
     logger('info', "found\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 
     logger('info', "Checking if the existing container image config version is a match...\n");
     logger('info', "getting config version from image...\n", 1);
-    ($command, $command_output, $rc) = run_command("buildah inspect --type image --format '{{.ImageAnnotations.Workshop_Config_Version}}' localhost/$me/$tmp_container");
+    ($command, $command_output, $rc) = run_command("buildah inspect --type image --format '{{.ImageAnnotations.Workshop_Config_Version}}' $tmp_container");
     if ($rc != 0) {
         logger('info', "failed\n", 2);
         command_logger('error', $command, $rc, $command_output);
@@ -955,7 +979,7 @@ if ($command_output !~ /null/) {
 
 if ($remove_image) {
     logger('info', "Removing existing container image that I am about to replace [$tmp_container]...\n");
-    ($command, $command_output, $rc) = run_command("buildah rmi $me/$tmp_container");
+    ($command, $command_output, $rc) = run_command("buildah rmi $tmp_container");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
@@ -1078,7 +1102,8 @@ foreach my $fs (@virtual_fs) {
 
 if (-e $container_mount_point . "/etc/resolv.conf") {
     logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
-    ($command, $command_output, $rc) = run_command("mv --verbose " . $container_mount_point . "/etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf." . $me);
+    ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf.workshop");
+    ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
@@ -1090,7 +1115,7 @@ if (-e $container_mount_point . "/etc/resolv.conf") {
 }
 
 logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
-($command, $command_output, $rc) = run_command("cp --verbose /etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf");
+($command, $command_output, $rc) = run_command("/bin/cp --verbose /etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
@@ -1493,7 +1518,7 @@ foreach my $fs (@virtual_fs) {
 }
 
 logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n");
-($command, $command_output, $rc) = run_command("rm --verbose " . $container_mount_point . "/etc/resolv.conf");
+($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
@@ -1503,9 +1528,9 @@ if ($rc != 0) {
 logger('info', "succeeded\n", 1);
 command_logger('verbose', $command, $rc, $command_output);
 
-if (-e $container_mount_point . "/etc/resolv.conf." . $me) {
+if (-e $container_mount_point . "/etc/resolv.conf.workshop") {
     logger('info', "Restoring the backup of the temporary container's /etc/resolv.conf...\n");
-    ($command, $command_output, $rc) = run_command("mv --verbose " . $container_mount_point . "/etc/resolv.conf." . $me . " " . $container_mount_point . "/etc/resolv.conf");
+    ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf.workshop " . $container_mount_point . "/etc/resolv.conf");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
@@ -1667,7 +1692,7 @@ if (exists($args{'config'})) {
 
 # create the new container image
 logger('info', "Creating new container image...\n");
-($command, $command_output, $rc) = run_command("buildah commit --quiet $tmp_container localhost/$me/$tmp_container");
+($command, $command_output, $rc) = run_command("buildah commit --quiet $tmp_container $tmp_container");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
