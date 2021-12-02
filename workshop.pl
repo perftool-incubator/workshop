@@ -384,6 +384,8 @@ sub arg_handler {
     } elsif ($opt_name eq "tag") {
         $args{'tag'} = $opt_value;
     } elsif ($opt_name eq "proj") {
+        # Remove any protocol header
+        $opt_value =~ s/^([^\/]+)\:\/{0,1}(.+)/$2/;
         $args{'proj'} = $opt_value;
     } elsif ($opt_name eq "config") {
         $args{'config'} = $opt_value;
