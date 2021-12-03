@@ -381,12 +381,30 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
+        printf "label: [%s]\n", $args{'label'};
     } elsif ($opt_name eq "tag") {
         $args{'tag'} = $opt_value;
     } elsif ($opt_name eq "proj") {
-        # Remove any protocol header
-        $opt_value =~ s/^([^\/]+)\:\/{0,1}(.+)/$2/;
-        $args{'proj'} = $opt_value;
+        if ($opt_value =~ /^(\w+:\/){0,1}([^\/]+\/){0,1}([^\/]+){0,1}$/) {
+            if (defined($1)) {
+                $args{'proto'} = $1;
+                $args{'proto'} =~ s/\/$//;
+                printf "proto: [%s]\n", $args{'proto'};
+            }
+            if (defined($2)) {
+                $args{'host'} = $2;
+                $args{'host'} =~ s/\/$//;
+            } else {
+                $args{'host'} = 'localhost';
+            }
+            printf "host: [%s]\n", $args{'host'};
+            if (defined($3)) {
+                $args{'proj'} = $3;
+                printf "proj: [%s]\n", $args{'proj'};
+            }
+        } else {
+            die "The --proj does not match the pattern [protocol:/][host[:port]/][<project>]: " . $opt_value;
+        }
     } elsif ($opt_name eq "config") {
         $args{'config'} = $opt_value;
     } elsif ($opt_name eq "userenv") {
@@ -894,7 +912,7 @@ logger('debug', "The sha256 for the image configuration is '$config_checksum'\n"
 logger('debug', "Checksum Array:\n");
 logger('debug', Dumper(\@checksums));
 
-my $tmp_container = $args{'proj'} . "/" . $args{'label'} . ":" . $args{'tag'};
+my $tmp_container = $args{'host'} . "/" . $args{'proj'} . "/" . $args{'label'} . ":" . $args{'tag'};
 
 my $remove_image = 0;
 
