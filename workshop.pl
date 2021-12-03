@@ -546,7 +546,8 @@ if ($rc == 0 and defined $userenv_json) {
 if (!defined $args{'proj'}) {
     if (defined $args{'label'}) {
         # Support default behavior before --proj was introduced
-        $args{'proj'} = "localhost/workshop";
+        $args{'host'} = "localhost";
+        $args{'proj'} = "workshop";
         $args{'label'} = $userenv_json->{'userenv'}{'name'} . "_" . $args{'label'};
     } else {
         logger('error', "You must provide --label!\n");
