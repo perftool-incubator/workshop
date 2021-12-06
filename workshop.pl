@@ -381,7 +381,7 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
-        printf "label: [%s]\n", $args{'label'};
+        logger("info", "label: " . $args{'label'});
     } elsif ($opt_name eq "tag") {
         $args{'tag'} = $opt_value;
     } elsif ($opt_name eq "proj") {
@@ -389,7 +389,7 @@ sub arg_handler {
             if (defined($1)) {
                 $args{'proto'} = $1;
                 $args{'proto'} =~ s/\/$//;
-                printf "proto: [%s]\n", $args{'proto'};
+                logger("info", "proto: " . $args{'proto'});
             }
             if (defined($2)) {
                 $args{'host'} = $2;
@@ -397,10 +397,10 @@ sub arg_handler {
             } else {
                 $args{'host'} = 'localhost';
             }
-            printf "host: [%s]\n", $args{'host'};
+            logger("info", "host: " . $args{'host'});
             if (defined($3)) {
                 $args{'proj'} = $3;
-                printf "proj: [%s]\n", $args{'proj'};
+                logger("info", "proj: " . $args{'proj'});
             }
         } else {
             die "The --proj does not match the pattern [protocol:/][host[:port]/][<project>]: " . $opt_value;
