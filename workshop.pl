@@ -381,7 +381,7 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
-        logger("info", "label: " . $args{'label'});
+        logger("info", "label: " . $args{'label'} . "\n");
     } elsif ($opt_name eq "tag") {
         $args{'tag'} = $opt_value;
     } elsif ($opt_name eq "proj") {
@@ -389,7 +389,7 @@ sub arg_handler {
             if (defined($1)) {
                 $args{'proto'} = $1;
                 $args{'proto'} =~ s/\/$//;
-                logger("info", "proto: " . $args{'proto'});
+                logger("info", "proto: " . $args{'proto'} . "\n");
             }
             if (defined($2)) {
                 $args{'host'} = $2;
@@ -397,10 +397,10 @@ sub arg_handler {
             } else {
                 $args{'host'} = 'localhost';
             }
-            logger("info", "host: " . $args{'host'});
+            logger("info", "host: " . $args{'host'} . "\n");
             if (defined($3)) {
                 $args{'proj'} = $3;
-                logger("info", "proj: " . $args{'proj'});
+                logger("info", "proj: " . $args{'proj'} . "\n");
             }
         } else {
             die "The --proj does not match the pattern [protocol:/][host[:port]/][<project>]: " . $opt_value;
