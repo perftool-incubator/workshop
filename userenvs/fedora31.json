@@ -27,6 +27,18 @@
 		    "python36"
 		]
 	    }
+	},
+	{
+	    "name": "files",
+	    "type": "files",
+	    "files_info": {
+		"files": [
+		    {
+			"src": "/etc/os-release",
+			"dst": "/tmp"
+		    }
+		]
+	    }
 	}
     ]
 }
