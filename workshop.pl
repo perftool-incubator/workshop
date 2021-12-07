@@ -381,12 +381,30 @@ sub arg_handler {
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
+        logger("info", "label: " . $args{'label'} . "\n");
     } elsif ($opt_name eq "tag") {
         $args{'tag'} = $opt_value;
     } elsif ($opt_name eq "proj") {
-        # Remove any protocol header
-        $opt_value =~ s/^([^\/]+)\:\/{0,1}(.+)/$2/;
-        $args{'proj'} = $opt_value;
+        if ($opt_value =~ /^(\w+:\/){0,1}([^\/]+\/){0,1}([^\/]+){0,1}$/) {
+            if (defined($1)) {
+                $args{'proto'} = $1;
+                $args{'proto'} =~ s/\/$//;
+                logger("info", "proto: " . $args{'proto'} . "\n");
+            }
+            if (defined($2)) {
+                $args{'host'} = $2;
+                $args{'host'} =~ s/\/$//;
+            } else {
+                $args{'host'} = 'localhost';
+            }
+            logger("info", "host: " . $args{'host'} . "\n");
+            if (defined($3)) {
+                $args{'proj'} = $3;
+                logger("info", "proj: " . $args{'proj'} . "\n");
+            }
+        } else {
+            die "The --proj does not match the pattern [protocol:/][host[:port]/][<project>]: " . $opt_value;
+        }
     } elsif ($opt_name eq "config") {
         $args{'config'} = $opt_value;
     } elsif ($opt_name eq "userenv") {
@@ -528,7 +546,8 @@ if ($rc == 0 and defined $userenv_json) {
 if (!defined $args{'proj'}) {
     if (defined $args{'label'}) {
         # Support default behavior before --proj was introduced
-        $args{'proj'} = "localhost/workshop";
+        $args{'host'} = "localhost";
+        $args{'proj'} = "workshop";
         $args{'label'} = $userenv_json->{'userenv'}{'name'} . "_" . $args{'label'};
     } else {
         logger('error', "You must provide --label!\n");
@@ -894,7 +913,7 @@ logger('debug', "The sha256 for the image configuration is '$config_checksum'\n"
 logger('debug', "Checksum Array:\n");
 logger('debug', Dumper(\@checksums));
 
-my $tmp_container = $args{'proj'} . "/" . $args{'label'} . ":" . $args{'tag'};
+my $tmp_container = $args{'host'} . "/" . $args{'proj'} . "/" . $args{'label'} . ":" . $args{'tag'};
 
 my $remove_image = 0;
 
