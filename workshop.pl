@@ -45,6 +45,7 @@ $args{'force'} = 'false';
 $args{'dump-config'} = 'false';
 $args{'dump-files'} = 'false';
 $args{'param'} = {};
+$args{'reg-tls-verify'} = 'true';
 
 my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
@@ -52,6 +53,7 @@ my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
 my %dump_config_options = ( 'true' => 1, 'false' => 1);
 my %dump_files_options = ( 'true' => 1, 'false' => 1);
+my %reg_tls_verify_options = ( 'true' => 1, 'false' => 1);
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -346,6 +348,7 @@ sub usage {
     logger("info", "--dump-config <true|false*>         Dump the config instead of building the container\n");
     logger("info", "--dump-files <true|false*>          Dump the files that are being manually handled\n");
     logger("info", "--param <key>=<value>               When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
+    logger("info", "--reg-tls-verify <true*|false>      Use TLS for remote registry actions\n");
     logger("info", "\n");
 }
 
@@ -466,6 +469,12 @@ sub arg_handler {
         } else {
             $args{'param'}{$key} = $value;
         }
+    } elsif ($opt_name eq "reg-tls-verify") {
+        if (exists ($reg_tls_verify_options{$opt_value})) {
+            $args{'reg-tls-verify'} = $opt_value;
+        } else {
+            die("--reg-tls-verify must be one of 'true' or 'false' [not '$opt_value']");
+        }
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -484,7 +493,8 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "help" => \&arg_handler,
                 "param=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,
-                "dump-files=s" => \&arg_handler)) {
+                "dump-files=s" => \&arg_handler,
+                "reg-tls-verify=s" => \&arg_handler)) {
     usage();
     die("Error in command line arguments");
 }
@@ -855,7 +865,7 @@ if ($rc == 0) {
 } else {
     command_logger('verbose', $command, $rc, $command_output);
     logger('info', "Could not find $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}, attempting to download...\n", 1);
-    ($command, $command_output, $rc) = run_command("buildah pull --quiet $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+    ($command, $command_output, $rc) = run_command("buildah pull --quiet --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
     if ($rc == 0) {
         logger('info', "succeeded\n", 2);
         command_logger('verbose', $command, $rc, $command_output);
