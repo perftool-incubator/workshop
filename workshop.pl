@@ -145,7 +145,9 @@ sub get_exit_code {
         'python3_install_failed' => 80,
         'npm_install_failed' => 90,
         'requirement_definition_missing' => 91,
-        'no_label' => 92
+        'no_label' => 92,
+        'package_remove' => 93,
+        'group_remove' => 94,
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -1268,21 +1270,43 @@ if (opendir(NORMAL_ROOT, "/")) {
                 } elsif ($req->{'type'} eq 'distro') {
                     $distro_installs = 1;
 
-                    logger('info', "performing distro package installation...\n", 2);
+                    # default to 'install' operation in case it is not specified in the requirement
+                    my $operation = "install";
+                    if (exists($req->{'distro_info'}{'operation'})) {
+                        $operation = $req->{'distro_info'}{'operation'};
+                    }
+
+                    logger('info', "performing distro package $operation...\n", 2);
 
                     if (exists($req->{'distro_info'}{'packages'})) {
                         foreach my $pkg (@{$req->{'distro_info'}{'packages'}}) {
                             logger('info', "package '$pkg'...\n", 3);
 
-                            my $install_cmd = "";
+                            my $operation_cmd = "";
                             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
-                                $install_cmd = "dnf install --assumeyes " . $pkg;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "dnf install --assumeyes " . $pkg;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "dnf remove --assumeyes " . $pkg;
+                                }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
-                                $install_cmd = "yum install --assumeyes " . $pkg;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "yum install --assumeyes " . $pkg;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "yum remove --assumeyes " . $pkg;
+                                }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
-                                $install_cmd = "apt-get install -y " . $pkg;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "apt-get install -y " . $pkg;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "apt-get remove -y " . $pkg;
+                                }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
-                                $install_cmd = "zypper install -y " . $pkg;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "zypper install -y " . $pkg;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "zypper remove -y " . $pkg;
+                                }
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
@@ -1290,16 +1314,16 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 exit(get_exit_code('unsupported_package_manager'));
                             }
 
-                            ($command, $command_output, $rc) = run_command("$install_cmd");
+                            ($command, $command_output, $rc) = run_command("$operation_cmd");
                             if ($rc == 0) {
                                 logger('info', "succeeded\n", 4);
                                 command_logger('verbose', $command, $rc, $command_output);
                             } else {
                                 logger('info', "failed [rc=$rc]\n", 4);
                                 command_logger('error', $command, $rc, $command_output);
-                                logger('error', "Failed to install package '$pkg'\n");
+                                logger('error', "Failed to $operation package '$pkg'\n");
                                 quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('package_install'));
+                                exit(get_exit_code("package_" . $operation));
                             }
                         }
                     }
@@ -1308,16 +1332,33 @@ if (opendir(NORMAL_ROOT, "/")) {
                         foreach my $grp (@{$req->{'distro_info'}{'groups'}}) {
                             logger('info', "group '$grp'...\n", 3);
 
-                            my $install_cmd = "";
+                            my $operation_cmd = "";
                             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
-                                $install_cmd = "dnf groupinstall --assumeyes " . $grp;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "dnf groupinstall --assumeyes " . $grp;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "dnf groupremove --assumeyes " . $grp;
+                                }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
-                                $install_cmd = "yum groupinstall --assumeyes " . $grp;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "yum groupinstall --assumeyes " . $grp;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "yum groupremove --assumeyes " . $grp;
+                                }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
-                                # The equivalent of 'groupinstall' is just meta-packages for apt, so no special option needed
-                                $install_cmd = "apt-get install -y --assumeyes " . $grp;
+                                if ($operation eq 'install') {
+                                    # The equivalent of 'groupinstall' is just meta-packages for apt, so no special option needed
+                                    $operation_cmd = "apt-get install -y --assumeyes " . $grp;
+                                } elsif ($operation eq 'remove') {
+                                    # The equivalent of 'groupremove' is just meta-packages for apt, so no special option needed
+                                    $operation_cmd = "apt-get remove -y --assumeyes " . $grp;
+                                }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
-                                $install_cmd = "zypper install -y -t pattern " . $grp;
+                                if ($operation eq 'install') {
+                                    $operation_cmd = "zypper install -y -t pattern " . $grp;
+                                } elsif ($operation eq 'remove') {
+                                    $operation_cmd = "zypper remove -y -t pattern " . $grp;
+                                }
                             } else {
                                 logger('info', "failed\n", 4);
                                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
@@ -1325,16 +1366,16 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 exit(get_exit_code('unsupported_package_manager'));
                             }
 
-                            ($command, $command_output, $rc) = run_command("$install_cmd");
+                            ($command, $command_output, $rc) = run_command("$operation_cmd");
                             if ($rc == 0) {
                                 logger('info', "succeeded\n", 4);
                                 command_logger('verbose', $command, $rc, $command_output);
                             } else {
                                 logger('info', "failed [rc=$rc]\n", 4);
                                 command_logger('error', $command, $rc, $command_output);
-                                logger('error', "Failed to install group '$grp'\n");
+                                logger('error', "Failed to $operation group '$grp'\n");
                                 quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('group_install'));
+                                exit(get_exit_code('group_' . $operation));
                             }
                         }
                     }

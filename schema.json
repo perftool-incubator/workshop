@@ -199,6 +199,14 @@
 				"type": "object",
 				"minProperties": 1,
 				"properties": {
+				    "operation": {
+					"type": "string",
+					"default": "install",
+					"enum": [
+					    "install",
+					    "remove"
+					]
+				    },
 				    "packages": {
 					"type": "array",
 					"minItems": 1,
