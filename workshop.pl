@@ -482,6 +482,12 @@ sub arg_handler {
     }
 }
 
+sub delete_proto {
+    my $image = shift;
+    $image =~ s/^(\w+:\/)//;
+    return $image;
+}
+
 if (!GetOptions("completions=s" => \&arg_handler,
                 "config=s" => \&arg_handler,
                 "log-level=s" => \&arg_handler,
@@ -859,7 +865,7 @@ my $container_mount_point;
 
 # acquire the userenv from the origin
 logger('info', "Looking for container base image...\n");
-($command, $command_output, $rc) = run_command("buildah images --json $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+($command, $command_output, $rc) = run_command("buildah images --json " . delete_proto($userenv_json->{'userenv'}{'origin'}{'image'}) . ":$userenv_json->{'userenv'}{'origin'}{'tag'}");
 if ($rc == 0) {
     logger('info', "Found $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} locally\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
@@ -873,7 +879,7 @@ if ($rc == 0) {
         command_logger('verbose', $command, $rc, $command_output);
 
         logger('info', "Querying for information about the image...\n", 1);
-        ($command, $command_output, $rc) = run_command("buildah images --json $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+        ($command, $command_output, $rc) = run_command("buildah images --json " . delete_proto($userenv_json->{'userenv'}{'origin'}{'image'}) . ":$userenv_json->{'userenv'}{'origin'}{'tag'}");
         if ($rc == 0) {
             logger('info', "succeeded\n", 2);
             command_logger('verbose', $command, $rc, $command_output);
