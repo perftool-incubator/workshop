@@ -1141,16 +1141,21 @@ foreach my $fs (@virtual_fs) {
 
 if (-e $container_mount_point . "/etc/resolv.conf") {
     logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
+    my $command_output_log = "";
     ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf.workshop");
-    ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
+    $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+    if ($rc == 0) {
+        ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
+        $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+    }
     if ($rc != 0) {
         logger('info', "failed\n", 1);
-        command_logger('error', $command, $rc, $command_output);
+        logger('error', $command_output_log);
         logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
         exit(get_exit_code('resolve.conf_backup'));
     }
     logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
+    logger('verbose', $command_output_log);
 }
 
 logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
