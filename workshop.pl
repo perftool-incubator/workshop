@@ -1488,7 +1488,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             exit(get_exit_code('cpanm_install_failed'));
                         }
                     }
-                    logger('info', "succeeded\n", 2);
+                    logger('info', "succeeded\n", 4);
                     logger('verbose', $cpan_install_log);
                   } elsif ($req->{'type'} eq 'node') {
                       logger('info', "installing package via npm install...\n", 2);
@@ -1506,7 +1506,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                               exit(get_exit_code('npm_install_failed'));
                           }
                       }
-                      logger('info', "succeeded\n", 2);
+                      logger('info', "succeeded\n", 4);
                       logger('verbose', $npm_install_log);
                   } elsif ($req->{'type'} eq 'python3') {
                       logger('info', "installing package via python3 pip...\n", 2);
@@ -1524,7 +1524,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                               exit(get_exit_code('python3_install_failed'));
                           }
                       }
-                      logger('info', "succeeded\n", 2);
+                      logger('info', "succeeded\n", 4);
                       logger('verbose', $python3_install_log);
                 }
             }
