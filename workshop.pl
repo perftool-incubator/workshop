@@ -1047,7 +1047,7 @@ my $getsrc_cmd;
 my $update_cmd = "";
 my $clean_cmd = "";
 if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
-    $update_cmd = "dnf update --assumeyes";
+    $update_cmd = "dnf update --assumeyes --allowerasing --nobest";
     $clean_cmd = "dnf clean all";
 } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "yum") {
     $update_cmd = "yum update --assumeyes";
