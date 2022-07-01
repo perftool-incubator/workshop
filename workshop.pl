@@ -1396,8 +1396,18 @@ if (opendir(NORMAL_ROOT, "/")) {
                     if (chdir('/root')) {
                         my $build_cmd_log = "";
                         logger('info', "downloading...\n", 3);
-                        ($command, $command_output, $rc) = run_command("curl --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
-                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                        my $max_download_attempts = 3;
+                        my $download_attempts = 1;
+                        $rc = 1;
+                        while (($download_attempts <= $max_download_attempts) &&
+                               ($rc != 0)) {
+                            ($command, $command_output, $rc) = run_command("curl --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
+                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                            $download_attempts++;
+                            if ($rc != 0) {
+                                sleep 1;
+                            }
+                        }
                         if ($rc == 0) {
                             logger('info', "getting directory...\n", 3);
                             ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
