@@ -253,6 +253,24 @@ sub run_command {
     return ($command, $command_output, $rc);
 }
 
+sub filter_output {
+    my ($output) = @_;
+
+    my @lines = split(/\n/, $output);
+
+    $output = "";
+    for (my $i=0; $i<scalar(@lines); $i++) {
+        if ($lines[$i] !~ /level=warning/) {
+            $output .= $lines[$i] . "\n";
+        } else {
+            chomp($lines[$i]);
+            logger('debug', "filtering output line=" . $lines[$i] . "\n");
+        }
+    }
+
+    return ($output);
+}
+
 sub command_logger {
     my ($log_level, $command, $rc, $command_output) = @_;
 
@@ -869,6 +887,7 @@ logger('info', "Looking for container base image...\n");
 if ($rc == 0) {
     logger('info', "Found $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} locally\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
+    $command_output = filter_output($command_output);
     $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
 } else {
     command_logger('verbose', $command, $rc, $command_output);
@@ -883,6 +902,7 @@ if ($rc == 0) {
         if ($rc == 0) {
             logger('info', "succeeded\n", 2);
             command_logger('verbose', $command, $rc, $command_output);
+            $command_output = filter_output($command_output);
             $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
         } else {
             logger('info', "failed\n", 2);
@@ -953,6 +973,7 @@ if ($rc == 0) {
     } else {
         logger('info', "succeeded\n", 2);
         command_logger('verbose', $command, $rc, $command_output);
+        $command_output = filter_output($command_output);
 
         chomp($command_output);
 
@@ -981,6 +1002,7 @@ if ($rc == 0) {
 logger('info', "Checking for stale container presence...\n");
 ($command, $command_output, $rc) = run_command("buildah containers --filter name=$tmp_container --json");
 if ($command_output !~ /null/) {
+    $command_output = filter_output($command_output);
     my $tmp_json = decode_json($command_output);
 
     my $found = 0;
@@ -1119,6 +1141,7 @@ if ($rc != 0) {
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
+    $command_output = filter_output($command_output);
     chomp($command_output);
     $container_mount_point = $command_output;
 }
@@ -1396,12 +1419,23 @@ if (opendir(NORMAL_ROOT, "/")) {
                     if (chdir('/root')) {
                         my $build_cmd_log = "";
                         logger('info', "downloading...\n", 3);
-                        ($command, $command_output, $rc) = run_command("curl --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
-                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                        my $max_download_attempts = 3;
+                        my $download_attempts = 1;
+                        $rc = 1;
+                        while (($download_attempts <= $max_download_attempts) &&
+                               ($rc != 0)) {
+                            ($command, $command_output, $rc) = run_command("curl --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
+                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                            $download_attempts++;
+                            if ($rc != 0) {
+                                sleep 1;
+                            }
+                        }
                         if ($rc == 0) {
                             logger('info', "getting directory...\n", 3);
                             ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
                             $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                            $command_output = filter_output($command_output);
                             my $get_dir = $command_output;
                             chomp($get_dir);
                             if ($rc == 0) {
