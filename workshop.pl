@@ -1301,6 +1301,85 @@ if (opendir(NORMAL_ROOT, "/")) {
                     if ($msg ne 'go') {
                         exit($msg);
                     }
+                } elsif ($req->{'type'} eq 'distro-manual') {
+                    logger('info', "performing manual distro package installation...\n", 2);
+
+                    if (chdir('/root')) {
+                        foreach my $pkg (@{$req->{'distro-manual_info'}{'packages'}}) {
+                            my $install_cmd_log = "";
+                            my $download_filename = "distro-manual-package";
+
+                            logger('info', "package '$pkg'...\n", 3);
+
+                            logger('info', "downloading...\n", 4);
+                            my $max_download_attempts = 3;
+                            my $download_attempts = 1;
+                            $rc = 1;
+                            while (($download_attempts <= $max_download_attempts) &&
+                                   ($rc != 0)) {
+                                ($command, $command_output, $rc) = run_command("curl --url $pkg --output $download_filename --location");
+                                $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                $download_attempts++;
+                                if ($rc != 0) {
+                                    sleep 1;
+                                }
+                            }
+                            if ($rc == 0) {
+                                logger('info', "succeeded\n", 5);
+
+                                logger('info', "installing...\n", 4);
+
+                                my $operation_cmd = "";
+                                if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
+                                    $operation_cmd = "rpm --install --verbose " . $download_filename;
+                                } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
+                                    $operation_cmd = "dpkg --install " . $download_filename;
+                                } else {
+                                    logger('info', "failed\n", 5);
+                                    logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
+                                    quit_files_coro($files_requirements_present, $files_channel);
+                                    exit(get_exit_code('unsupported_package_manager'));
+                                }
+
+                                ($command, $command_output, $rc) = run_command("$operation_cmd");
+                                $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                if ($rc == 0) {
+                                    logger('info', "succeeded\n", 5);
+
+                                    logger('info', "cleaning up...\n", 4);
+                                    ($command, $command_output, $rc) = run_command("rm -v $download_filename");
+                                    $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                    if ($rc == 0) {
+                                        logger('info', "succeeded\n", 5);
+                                        logger('verbose', $install_cmd_log);
+                                    } else {
+                                        logger('info', "failed [rc=$rc]\n", 5);
+                                        logger('error', $install_cmd_log);
+                                        logger('error', "Failed to cleanup package '$pkg'\n");
+                                        quit_files_coro($files_requirements_present, $files_channel);
+                                        exit(get_exit_code("install_cleanup"));
+                                    }
+                                } else {
+                                    logger('info', "failed [rc=$rc]\n", 5);
+                                    logger('error', $install_cmd_log);
+                                    logger('error', "Failed to install package '$pkg'\n");
+                                    quit_files_coro($files_requirements_present, $files_channel);
+                                    exit(get_exit_code("package_install"));
+                                }
+                            } else {
+                                logger('info', "failed\n", 5);
+                                logger('error', $install_cmd_log);
+                                logger('error', "Could not download $pkg!\n");
+                                quit_files_coro($files_requirements_present, $files_channel);
+                                exit(get_exit_code('download_failed'));
+                            }
+                        }
+                    } else {
+                        logger('info', "failed\n", 2);
+                        logger('error', "Could not chdir to /root!\n");
+                        quit_files_coro($files_requirements_present, $files_channel);
+                        exit(get_exit_code('chdir_failed'));
+                    }
                 } elsif ($req->{'type'} eq 'distro') {
                     $distro_installs = 1;
 
