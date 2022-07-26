@@ -71,7 +71,8 @@
 			    "type": "string",
 			    "enum": [
 				"2020.03.02",
-				"2020.04.30"
+				"2020.04.30",
+				"2022.07.25"
 			    ]
 			}
 		    },
@@ -182,6 +183,45 @@
 	    "uniqueItems": true,
 	    "items": {
 		"oneOf": [
+		    {
+			"type": "object",
+			"properties": {
+			    "name": {
+				"type": "string",
+				"minLength": 1
+			    },
+			    "type": {
+				"type": "string",
+				"enum": [
+				    "distro-manual"
+				]
+			    },
+			    "distro-manual_info": {
+				"type": "object",
+				"properties": {
+				    "packages": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueuItems": true,
+					"items": {
+					    "type": "string",
+					    "minLength": 1
+					}
+				    }
+				},
+				"required": [
+				    "packages"
+				],
+				"additionalProperties": false
+			    }
+			},
+			"required": [
+			    "name",
+			    "type",
+			    "distro-manual_info"
+			],
+			"additionalProperties": false
+		    },
 		    {
 			"type": "object",
 			"properties": {
