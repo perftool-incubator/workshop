@@ -1322,6 +1322,26 @@ if (opendir(NORMAL_ROOT, "/")) {
                                 $download_attempts++;
                                 if ($rc != 0) {
                                     sleep 1;
+                                } else {
+                                    my $operation_cmd;
+                                    if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
+                                        $operation_cmd = "rpm --install --verbose --test " . $download_filename;
+                                    } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
+                                        $operation_cmd = "";
+                                    } else {
+                                        logger('info', "failed validation\n", 5);
+                                        logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
+                                        quit_files_coro($files_requirements_present, $files_channel);
+                                        exit(get_exit_code('unsupported_package_manager'));
+                                    }
+
+                                    if ($operation_cmd ne '') {
+                                        ($command, $command_output, $rc) = run_command("$operation_cmd");
+                                        $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                        if ($rc != 0) {
+                                            sleep 1;
+                                        }
+                                    }
                                 }
                             }
                             if ($rc == 0) {
