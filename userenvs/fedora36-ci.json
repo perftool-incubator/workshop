@@ -5,11 +5,11 @@
 	}
     },
     "userenv": {
-	"name": "fedora31",
-	"label": "Fedora 31",
+	"name": "fedora36",
+	"label": "Fedora 36",
 	"origin": {
 	    "image": "docker.io/library/fedora",
-	    "tag": "31"
+	    "tag": "36"
 	},
 	"properties": {
 	    "packages": {
@@ -20,11 +20,11 @@
     },
     "requirements": [
 	{
-	    "name": "python36",
+	    "name": "python39",
 	    "type": "distro",
 	    "distro_info": {
 		"packages": [
-		    "python36"
+		    "python39"
 		]
 	    }
 	},
