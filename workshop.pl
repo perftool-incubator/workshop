@@ -1418,7 +1418,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             my $operation_cmd = "";
                             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "dnf install --assumeyes " . $pkg;
+                                    $operation_cmd = "dnf install --allowerasing --assumeyes " . $pkg;
                                 } elsif ($operation eq 'remove') {
                                     $operation_cmd = "dnf remove --assumeyes " . $pkg;
                                 }
@@ -1468,7 +1468,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             my $operation_cmd = "";
                             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "dnf groupinstall --assumeyes " . $grp;
+                                    $operation_cmd = "dnf groupinstall --allowerasing --assumeyes " . $grp;
                                 } elsif ($operation eq 'remove') {
                                     $operation_cmd = "dnf groupremove --assumeyes " . $grp;
                                 }
