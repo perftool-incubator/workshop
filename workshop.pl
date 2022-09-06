@@ -1317,7 +1317,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                             $rc = 1;
                             while (($download_attempts <= $max_download_attempts) &&
                                    ($rc != 0)) {
-                                ($command, $command_output, $rc) = run_command("curl --url $pkg --output $download_filename --location");
+                                ($command, $command_output, $rc) = run_command("curl --fail --url $pkg --output $download_filename --location");
                                 $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                                 $download_attempts++;
                                 if ($rc != 0) {
@@ -1523,7 +1523,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                         $rc = 1;
                         while (($download_attempts <= $max_download_attempts) &&
                                ($rc != 0)) {
-                            ($command, $command_output, $rc) = run_command("curl --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
+                            ($command, $command_output, $rc) = run_command("curl --fail --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
                             $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                             $download_attempts++;
                             if ($rc != 0) {
