@@ -152,9 +152,6 @@ jobs:
 
   crucible-ci-build-controller:
     runs-on: ubuntu-latest
-    needs:
-    - generate-job-matrix-parameters
-    - display-job-matrix-parameters
     steps:
     - name: checkout workshop
       uses: actions/checkout@v3
@@ -166,20 +163,67 @@ jobs:
         repository: perftool-incubator/crucible-ci
         ref: main
         path: crucible-ci
+    - name: import secret
+      env:
+        CLIENT_SERVER_REGISTRY_AUTH_SECRET: ${{ secrets.CRUCIBLE_CI_ENGINES_REGISTRY_AUTH }}
+      if: env.CLIENT_SERVER_REGISTRY_AUTH_SECRET != ''
+      run: sudo bash -c "echo \"$CLIENT_SERVER_REGISTRY_AUTH_SECRET\" > /root/crucible-ci-engines-token.json"
+    - name: run crucible-ci>install-crucible
+      uses: ./crucible-ci/.github/actions/install-crucible
+      with:
+        ci_target: "workshop"
+        ci_target_dir: ${{ github.workspace }}/workshop
+    - name: display crucible config
+      run: cat /etc/sysconfig/crucible
+    - name: verify crucible functionality
+      run: sudo crucible repo info
+    - name: run crucible-ci->build-controller
+      uses: ./crucible-ci/.github/actions/build-controller
+      with:
+        push_tag: workshop-${{ github.run_number }}
+
+  crucible-ci-test-controller-build:
+    runs-on: ubuntu-latest
+    needs:
+    - crucible-ci-build-controller
+    strategy:
+      fail-fast: false
+      matrix:
+        ci_controller: [ "no", "yes" ]
+    steps:
+    - name: Matrix Parameters => (${{ matrix.ci_controller }})
+      run: |
+        echo "ci_controller=${{ matrix.ci_controller }}"
+    - name: checkout workshop
+      uses: actions/checkout@v3
+      with:
+        path: workshop
+    - name: checkout crucible-ci
+      uses: actions/checkout@v3
+      with:
+        repository: perftool-incubator/crucible-ci
+        ref: main
+        path: crucible-ci
+    - name: import secret
+      env:
+        CLIENT_SERVER_REGISTRY_AUTH_SECRET: ${{ secrets.CRUCIBLE_CI_ENGINES_REGISTRY_AUTH }}
+      if: env.CLIENT_SERVER_REGISTRY_AUTH_SECRET != ''
+      run: sudo bash -c "echo \"$CLIENT_SERVER_REGISTRY_AUTH_SECRET\" > /root/crucible-ci-engines-token.json"
     - name: run crucible-ci->integration-tests
       uses: ./crucible-ci/.github/actions/integration-tests
       with:
-        artifact_tag: "build-controller"
-        ci_build_controller: "yes"
+        artifact_tag: "workshop__test-controller-build__${{ matrix.ci_controller }}"
         ci_target: "workshop"
         ci_target_dir: ${{ github.workspace }}/workshop
+        controller_tag: workshop-${{ github.run_number }}
+        ci_controller: "${{ matrix.ci_controller }}"
 
   crucible-ci-complete:
     runs-on: ubuntu-latest
     needs:
     - crucible-ci-github-runners
     - crucible-ci-self-hosted-runners
-    - crucible-ci-build-controller
+    - crucible-ci-test-controller-build
     steps:
     - name: Confirm Success
       run: echo "crucible-ci-complete"
