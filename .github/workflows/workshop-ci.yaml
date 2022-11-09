@@ -8,6 +8,10 @@ on:
   # allow for manual invocation from the actions tab
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   workshop-ci:
     runs-on: ubuntu-latest
