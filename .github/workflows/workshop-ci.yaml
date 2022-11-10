@@ -8,12 +8,16 @@ on:
   # allow for manual invocation from the actions tab
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.ref }}/workshop-ci
+  cancel-in-progress: true
+
 jobs:
   workshop-ci:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Install Perl Dependencies
       run: |
