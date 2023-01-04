@@ -1205,11 +1205,12 @@ if (opendir(NORMAL_ROOT, "/")) {
 
     my $files_channel;
     my $return_channel;
+    my $coro;
     if ($files_requirements_present) {
         $files_channel = new Coro::Channel(1);
         $return_channel = new Coro::Channel(1);
 
-        async {
+        $coro = new Coro sub {
             my $dir_handle;
             my $cur_pwd;
 
@@ -1282,6 +1283,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                 $return_channel->put('go');
             }
         };
+        $coro->ready();
     }
 
     # jump into the container image
