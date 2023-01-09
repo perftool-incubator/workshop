@@ -1205,15 +1205,18 @@ if (opendir(NORMAL_ROOT, "/")) {
 
     my $files_channel;
     my $return_channel;
+    my $coro;
     if ($files_requirements_present) {
         $files_channel = new Coro::Channel(1);
         $return_channel = new Coro::Channel(1);
 
-        async {
+        $coro = new Coro sub {
             my $dir_handle;
             my $cur_pwd;
 
             Coro::on_enter {
+                logger('verbose', "Performing async/coro enter\n");
+
                 ($command, $cur_pwd, $rc) = run_command("pwd");
                 chomp($cur_pwd);
 
@@ -1232,6 +1235,8 @@ if (opendir(NORMAL_ROOT, "/")) {
             };
 
             Coro::on_leave {
+                logger('verbose', "Performing async/coro leave\n");
+
                 if (!chroot($container_mount_point)) {
                     logger('error', "Failed to chroot back to the container mount point during async/coro exit!\n");
                     $return_channel->put(get_exit_code('coro_failure'));
@@ -1282,6 +1287,7 @@ if (opendir(NORMAL_ROOT, "/")) {
                 $return_channel->put('go');
             }
         };
+        $coro->ready();
     }
 
     # jump into the container image
