@@ -1,0 +1,17 @@
+name: faux-workshop-ci
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths:
+    - LICENSE
+    - '**.md'
+    - .github/workflows/faux-crucible-ci.yaml
+    - .github/workflows/faux-workshop-ci.yaml
+    - 'docs/**'
+
+jobs:
+  workshop-ci:
+    runs-on: ubuntu-latest
+    steps:
+    - run: 'echo "No build required" '
