@@ -4,6 +4,12 @@ on:
   # run on pull request events for the master branch only
   pull_request:
     branches: [ master ]
+    paths-ignore:
+    - LICENSE
+    - '**.md'
+    - .github/workflows/faux-crucible-ci.yaml
+    - .github/workflows/faux-workshop-ci.yaml
+    - 'docs/**'
 
   # allow for manual invocation from the actions tab
   workflow_dispatch:
