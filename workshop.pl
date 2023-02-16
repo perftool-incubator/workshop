@@ -148,6 +148,8 @@ sub get_exit_code {
         'no_label' => 92,
         'package_remove' => 93,
         'group_remove' => 94,
+        'architecture_query_failed' => 95,
+        'unsupported_platform_architecture' => 96
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -576,6 +578,43 @@ if ($rc == 0 and defined $userenv_json) {
     } else {
         logger('error', "Unkown error: $rc'\n");
         exit(get_exit_code('failed_opening_userenv'));
+    }
+}
+
+if (exists $userenv_json->{'userenv'}{'properties'}{'platform'}) {
+    # the userenv has platform information that indicates what type of
+    # system architecture(s) it supports so validate that what we are
+    # about to build is supported
+    my $my_architecture;
+    logger('info', "performing userenv platform validation...\n", 1);
+    ($command, $command_output, $rc) = run_command("uname -m");
+    if ($rc == 0) {
+        command_logger('verbose', $command, $rc, $command_output);
+        $command_output = filter_output($command_output);
+        chomp($command_output);
+        $my_architecture = $command_output;
+        logger('info', "found current system architecture is " . $my_architecture . "\n", 2);
+    } else {
+        logger('info', "failed\n", 2);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to obtain the current system architecture!\n");
+        exit(get_exit_code('architecture_query_failed'));
+    }
+
+    my $supported = 0;
+    # loop through the supported platforms and see if our architecture matches one of them
+    foreach my $platform (@{$userenv_json->{'userenv'}{'properties'}{'platform'}}) {
+        if ($platform->{'architecture'} eq $my_architecture) {
+            $supported = 1;
+        }
+    }
+
+    if ($supported) {
+        logger('info', "succeeded...the userenv is supported for my architecture.\n", 2);
+    } else {
+        logger('info', "failed...the userenv is not supported for my architecture.\n", 2);
+        logger('error', "The userenv is not supported for my architecure.\n");
+        exit(get_exit_code('unsupported_platform_architecture'));
     }
 }
 
