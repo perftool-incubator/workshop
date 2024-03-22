@@ -73,7 +73,8 @@
 				"2020.03.02",
 				"2020.04.30",
 				"2022.07.25",
-				"2023.02.16"
+				"2023.02.16",
+				"2024.03.22"
 			    ]
 			}
 		    },
@@ -286,6 +287,12 @@
 					    "type": "string",
 					    "minLength": 1
 					}
+				    },
+				    "environment": {
+					"type": "object",
+					"properties": { },
+					"minProperties": 1,
+					"additionalProperties": true
 				    }
 				},
 				"additionalProperties": false
