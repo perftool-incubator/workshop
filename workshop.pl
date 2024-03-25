@@ -1454,36 +1454,44 @@ if (opendir(NORMAL_ROOT, "/")) {
                         $operation = $req->{'distro_info'}{'operation'};
                     }
 
+                    my $environment = "";
+                    if (exists($req->{'distro_info'}{'environment'})) {
+                        $environment = "env ";
+                        foreach my $key (keys %{$req->{'distro_info'}{'environment'}}) {
+                            $environment .= $key . "=" . $req->{'distro_info'}{'environment'}{$key} . " ";
+                        }
+                    }
+
                     logger('info', "performing distro package $operation...\n", 2);
 
                     if (exists($req->{'distro_info'}{'packages'})) {
                         foreach my $pkg (@{$req->{'distro_info'}{'packages'}}) {
                             logger('info', "package '$pkg'...\n", 3);
 
-                            my $operation_cmd = "";
+                            my $operation_cmd = "$environment";
                             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "dnf install --allowerasing --assumeyes " . $pkg;
+                                    $operation_cmd .= "dnf install --allowerasing --assumeyes " . $pkg;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "dnf remove --assumeyes " . $pkg;
+                                    $operation_cmd .= "dnf remove --assumeyes " . $pkg;
                                 }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "yum install --assumeyes " . $pkg;
+                                    $operation_cmd .= "yum install --assumeyes " . $pkg;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "yum remove --assumeyes " . $pkg;
+                                    $operation_cmd .= "yum remove --assumeyes " . $pkg;
                                 }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "apt-get install -y " . $pkg;
+                                    $operation_cmd .= "apt-get install -y " . $pkg;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "apt-get remove -y " . $pkg;
+                                    $operation_cmd .= "apt-get remove -y " . $pkg;
                                 }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "zypper install -y " . $pkg;
+                                    $operation_cmd .= "zypper install -y " . $pkg;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "zypper remove -y " . $pkg;
+                                    $operation_cmd .= "zypper remove -y " . $pkg;
                                 }
                             } else {
                                 logger('info', "failed\n", 4);
@@ -1510,32 +1518,32 @@ if (opendir(NORMAL_ROOT, "/")) {
                         foreach my $grp (@{$req->{'distro_info'}{'groups'}}) {
                             logger('info', "group '$grp'...\n", 3);
 
-                            my $operation_cmd = "";
+                            my $operation_cmd = "$environment";
                             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "dnf groupinstall --allowerasing --assumeyes " . $grp;
+                                    $operation_cmd .= "dnf groupinstall --allowerasing --assumeyes " . $grp;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "dnf groupremove --assumeyes " . $grp;
+                                    $operation_cmd .= "dnf groupremove --assumeyes " . $grp;
                                 }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "yum groupinstall --assumeyes " . $grp;
+                                    $operation_cmd .= "yum groupinstall --assumeyes " . $grp;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "yum groupremove --assumeyes " . $grp;
+                                    $operation_cmd .= "yum groupremove --assumeyes " . $grp;
                                 }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
                                 if ($operation eq 'install') {
                                     # The equivalent of 'groupinstall' is just meta-packages for apt, so no special option needed
-                                    $operation_cmd = "apt-get install -y --assumeyes " . $grp;
+                                    $operation_cmd .= "apt-get install -y --assumeyes " . $grp;
                                 } elsif ($operation eq 'remove') {
                                     # The equivalent of 'groupremove' is just meta-packages for apt, so no special option needed
-                                    $operation_cmd = "apt-get remove -y --assumeyes " . $grp;
+                                    $operation_cmd .= "apt-get remove -y --assumeyes " . $grp;
                                 }
                             } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
                                 if ($operation eq 'install') {
-                                    $operation_cmd = "zypper install -y -t pattern " . $grp;
+                                    $operation_cmd .= "zypper install -y -t pattern " . $grp;
                                 } elsif ($operation eq 'remove') {
-                                    $operation_cmd = "zypper remove -y -t pattern " . $grp;
+                                    $operation_cmd .= "zypper remove -y -t pattern " . $grp;
                                 }
                             } else {
                                 logger('info', "failed\n", 4);
