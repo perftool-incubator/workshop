@@ -919,6 +919,7 @@ if ($args{'dump-files'} eq 'true') {
 }
 
 my $container_mount_point;
+my $origin_image_id;
 
 # acquire the userenv from the origin
 logger('info', "Looking for container base image...\n");
@@ -928,6 +929,8 @@ if ($rc == 0) {
     command_logger('verbose', $command, $rc, $command_output);
     $command_output = filter_output($command_output);
     $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
+
+    $origin_image_id = $userenv_json->{'userenv'}{'origin'}{'local_details'}[0]{'id'};
 } else {
     command_logger('verbose', $command, $rc, $command_output);
     logger('info', "Could not find $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}, attempting to download...\n", 1);
@@ -936,8 +939,12 @@ if ($rc == 0) {
         logger('info', "succeeded\n", 2);
         command_logger('verbose', $command, $rc, $command_output);
 
+        $command_output = filter_output($command_output);
+        chomp($command_output);
+        $origin_image_id = $command_output;
+
         logger('info', "Querying for information about the image...\n", 1);
-        ($command, $command_output, $rc) = run_command("buildah images --json " . delete_proto($userenv_json->{'userenv'}{'origin'}{'image'}) . ":$userenv_json->{'userenv'}{'origin'}{'tag'}");
+        ($command, $command_output, $rc) = run_command("buildah images --json " . $origin_image_id);
         if ($rc == 0) {
             logger('info', "succeeded\n", 2);
             command_logger('verbose', $command, $rc, $command_output);
@@ -946,7 +953,7 @@ if ($rc == 0) {
         } else {
             logger('info', "failed\n", 2);
             command_logger('error', $command, $rc, $command_output);
-            logger('error', "Failed to download/query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
+            logger('error', "Failed to download/query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} ($origin_image_id)!\n");
             exit(get_exit_code('image_query'));
         }
     } else {
@@ -1093,11 +1100,11 @@ if ($remove_image) {
 
 # create a new container based on the userenv source
 logger('info', "Creating temporary container...\n");
-($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $origin_image_id");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'origin'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}'!\n");
+    logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'origin'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}' ($origin_image_id)!\n");
     exit(get_exit_code('create_container'));
 } else {
     logger('info', "succeeded\n", 1);
