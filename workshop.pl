@@ -149,7 +149,9 @@ sub get_exit_code {
         'package_remove' => 93,
         'group_remove' => 94,
         'architecture_query_failed' => 95,
-        'unsupported_platform_architecture' => 96
+        'unsupported_platform_architecture' => 96,
+        'skopeo_inspect_failed' => 97,
+        'skopeo_digest_missing' => 98
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -581,6 +583,13 @@ if ($rc == 0 and defined $userenv_json) {
     }
 }
 
+if (! exists $userenv_json->{'userenv'}{'origin'}{'update-policy'}) {
+    # if the loaded json does not include an update policy then
+    # default to "missing" which results in the same behavior we have
+    # always had
+    $userenv_json->{'userenv'}{'origin'}{'update-policy'} = "missing";
+}
+
 if (exists $userenv_json->{'userenv'}{'properties'}{'platform'}) {
     # the userenv has platform information that indicates what type of
     # system architecture(s) it supports so validate that what we are
@@ -882,9 +891,40 @@ if (exists($args{'config'})) {
 }
 
 if ($args{'dump-config'} eq 'true') {
-    logger('info', "Config dump:\n");
-
     my %config_dump = ();
+
+    if ($userenv_json->{'userenv'}{'origin'}{'update-policy'} eq 'digest') {
+        # get the userenv digest to include in the config dump -- this
+        # can be used by callers that are analyzing the dumped config
+        # to know whether or not the origin image has changed
+        my $image_id = $userenv_json->{'userenv'}{'origin'}{'image'} . ":" . $userenv_json->{'userenv'}{'origin'}{'tag'};
+        my $skopeo_url;
+        if (($image_id =~ /^dir:/) || ($image_id =~ /^docker:\/\//)) {
+            $skopeo_url = $image_id;
+        } else {
+            $skopeo_url = "docker://" . $image_id;
+        }
+        logger('info', "Querying for origin image digest...\n", 1);
+        ($command, $command_output, $rc) = run_command("skopeo inspect " . $skopeo_url);
+        if ($rc == 0) {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+
+            $command_output = filter_output($command_output);
+            my $skopeo_json = decode_json($command_output);
+            if (exists ($skopeo_json->{'Digest'})) {
+                $userenv_json->{'userenv'}{'origin'}{'digest'} = $skopeo_json->{'Digest'};
+            } else {
+                logger('error', "Query results do not contain a digest");
+                exit(get_exit_code('skopeo_digest_missing'));
+            }
+        } else {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to query " . $skopeo_url);
+            exit(get_exit_code('skopeo_inspect_failed'));
+        }
+    }
 
     # consolidate information to be dumped
     $config_dump{'userenv'} = $userenv_json;
@@ -899,6 +939,7 @@ if ($args{'dump-config'} eq 'true') {
         delete $config_dump{'requirements'}[$i]{'sha256'};
     }
 
+    logger('info', "Config dump:\n");
     logger('info', Data::Dumper->Dump([\%config_dump], [qw(*config_dump)]));
 
     exit()
@@ -922,46 +963,34 @@ my $container_mount_point;
 my $origin_image_id;
 
 # acquire the userenv from the origin
-logger('info', "Looking for container base image...\n");
-($command, $command_output, $rc) = run_command("buildah images --json " . delete_proto($userenv_json->{'userenv'}{'origin'}{'image'}) . ":$userenv_json->{'userenv'}{'origin'}{'tag'}");
+logger('info', "Attempting to download the latest version of $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}...\n", 1);
+($command, $command_output, $rc) = run_command("buildah pull --quiet --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
 if ($rc == 0) {
-    logger('info', "Found $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} locally\n", 1);
+    logger('info', "succeeded\n", 2);
     command_logger('verbose', $command, $rc, $command_output);
-    $command_output = filter_output($command_output);
-    $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
 
-    $origin_image_id = $userenv_json->{'userenv'}{'origin'}{'local_details'}[0]{'id'};
-} else {
-    command_logger('verbose', $command, $rc, $command_output);
-    logger('info', "Could not find $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}, attempting to download...\n", 1);
-    ($command, $command_output, $rc) = run_command("buildah pull --quiet --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+    $command_output = filter_output($command_output);
+    chomp($command_output);
+    $origin_image_id = $command_output;
+
+    logger('info', "Querying for information about the image...\n", 1);
+    ($command, $command_output, $rc) = run_command("buildah images --json " . $origin_image_id);
     if ($rc == 0) {
         logger('info', "succeeded\n", 2);
         command_logger('verbose', $command, $rc, $command_output);
-
         $command_output = filter_output($command_output);
-        chomp($command_output);
-        $origin_image_id = $command_output;
-
-        logger('info', "Querying for information about the image...\n", 1);
-        ($command, $command_output, $rc) = run_command("buildah images --json " . $origin_image_id);
-        if ($rc == 0) {
-            logger('info', "succeeded\n", 2);
-            command_logger('verbose', $command, $rc, $command_output);
-            $command_output = filter_output($command_output);
-            $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
-        } else {
-            logger('info', "failed\n", 2);
-            command_logger('error', $command, $rc, $command_output);
-            logger('error', "Failed to download/query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} ($origin_image_id)!\n");
-            exit(get_exit_code('image_query'));
-        }
+        $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
     } else {
         logger('info', "failed\n", 2);
         command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to download $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
-        exit(get_exit_code('image_origin_pull'));
+        logger('error', "Failed to query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} ($origin_image_id)!\n");
+        exit(get_exit_code('image_query'));
     }
+} else {
+    logger('info', "failed\n", 2);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Failed to download $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
+    exit(get_exit_code('image_origin_pull'));
 }
 
 logger('debug', "Userenv JSON:\n");
