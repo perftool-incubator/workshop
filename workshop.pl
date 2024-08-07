@@ -47,13 +47,14 @@ $args{'dump-files'} = 'false';
 $args{'param'} = {};
 $args{'reg-tls-verify'} = 'true';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files', '--force-update-policy' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
 my %dump_config_options = ( 'true' => 1, 'false' => 1);
 my %dump_files_options = ( 'true' => 1, 'false' => 1);
 my %reg_tls_verify_options = ( 'true' => 1, 'false' => 1);
+my %force_update_policy_options = ( 'missing' => 1, 'digest' => 1 );
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -363,16 +364,17 @@ sub usage {
     logger("info", "\n");
     logger("info", "Optional arguments: (* denotes default)\n");
     logger("info", "\n");
-    logger("info", "--requirements <file>               Requirements file (can be used multiple times)\n");
-    logger("info", "--label <string>                    Label to apply to container image\n");
-    logger("info", "--config <file>                     Container config file\n");
-    logger("info", "--log-level <info*|verbose|debug>   Control logging output\n");
-    logger("info", "--skip-update <true|false*>         Should the container run it's distro update function\n");
-    logger("info", "--force <true|false*>               Force the container build\n");
-    logger("info", "--dump-config <true|false*>         Dump the config instead of building the container\n");
-    logger("info", "--dump-files <true|false*>          Dump the files that are being manually handled\n");
-    logger("info", "--param <key>=<value>               When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
-    logger("info", "--reg-tls-verify <true*|false>      Use TLS for remote registry actions\n");
+    logger("info", "--requirements <file>                      Requirements file (can be used multiple times)\n");
+    logger("info", "--label <string>                           Label to apply to container image\n");
+    logger("info", "--config <file>                            Container config file\n");
+    logger("info", "--log-level <info*|verbose|debug>          Control logging output\n");
+    logger("info", "--skip-update <true|false*>                Should the container run it's distro update function\n");
+    logger("info", "--force <true|false*>                      Force the container build\n");
+    logger("info", "--dump-config <true|false*>                Dump the config instead of building the container\n");
+    logger("info", "--dump-files <true|false*>                 Dump the files that are being manually handled\n");
+    logger("info", "--param <key>=<value>                      When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
+    logger("info", "--reg-tls-verify <true*|false>             Use TLS for remote registry actions\n");
+    logger("info", "--force-update-policy <missing*|digest>    Override the userenv's specified update policy\n");
     logger("info", "\n");
 }
 
@@ -499,6 +501,12 @@ sub arg_handler {
         } else {
             die("--reg-tls-verify must be one of 'true' or 'false' [not '$opt_value']");
         }
+    } elsif ($opt_name eq "force-update-policy") {
+        if (exists ($force_update_policy_options{$opt_value})) {
+            $args{'force-update-policy'} = $opt_value;
+        } else {
+            die("--force-update-policy must be one of 'missing' or 'digest' [not '$opt_value']");
+        }
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -524,7 +532,8 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "param=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,
                 "dump-files=s" => \&arg_handler,
-                "reg-tls-verify=s" => \&arg_handler)) {
+                "reg-tls-verify=s" => \&arg_handler,
+                "force-update-policy=s" => \&arg_handler)) {
     usage();
     die("Error in command line arguments");
 }
@@ -893,7 +902,22 @@ if (exists($args{'config'})) {
 if ($args{'dump-config'} eq 'true') {
     my %config_dump = ();
 
-    if ($userenv_json->{'userenv'}{'origin'}{'update-policy'} eq 'digest') {
+    my $include_digest = 0;
+    if (exists ($args{'force-update-policy'})) {
+        if ($args{'force-update-policy'} eq 'digest') {
+            $include_digest = 1;
+        } elsif ($args{'force-update-policy'} eq 'missing') {
+            $include_digest = 0;
+        }
+    } elsif ($userenv_json->{'userenv'}{'origin'}{'update-policy'} eq 'digest') {
+        $include_digest = 1;
+    } elsif ($userenv_json->{'userenv'}{'origin'}{'update-policy'} eq 'missing') {
+        $include_digest = 0;
+    } else {
+        die("I'm confused, how did I get here [include_digest]?")
+    }
+
+    if ($include_digest == 1) {
         # get the userenv digest to include in the config dump -- this
         # can be used by callers that are analyzing the dumped config
         # to know whether or not the origin image has changed
