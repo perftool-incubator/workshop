@@ -41,8 +41,10 @@ jobs:
       run: |
         export TOOLBOX_HOME=~/toolbox
         echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci-dump-config --userenv ./userenvs/fedora36-ci.json --dump-config true
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true
         echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci-dump-files --userenv ./userenvs/fedora36-ci.json --dump-files true
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true --force-update-policy missing
         echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci --userenv ./userenvs/fedora36-ci.json --log-level verbose
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci-dump-files --userenv ./userenvs/fedora-ci.json --dump-files true
+        echo
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --label workshop-ci --userenv ./userenvs/fedora-ci.json --log-level verbose
