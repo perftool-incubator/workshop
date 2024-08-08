@@ -929,7 +929,7 @@ if ($args{'dump-config'} eq 'true') {
             $skopeo_url = "docker://" . $image_id;
         }
         logger('info', "Querying for origin image digest...\n", 1);
-        ($command, $command_output, $rc) = run_command("skopeo inspect " . $skopeo_url);
+        ($command, $command_output, $rc) = run_command("skopeo inspect --no-tags " . $skopeo_url);
         if ($rc == 0) {
             logger('info', "succeeded\n", 2);
             command_logger('verbose', $command, $rc, $command_output);
@@ -988,7 +988,7 @@ my $origin_image_id;
 
 # acquire the userenv from the origin
 logger('info', "Attempting to download the latest version of $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}...\n", 1);
-($command, $command_output, $rc) = run_command("buildah pull --quiet --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+($command, $command_output, $rc) = run_command("buildah pull --quiet --policy=ifnewer --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
 if ($rc == 0) {
     logger('info', "succeeded\n", 2);
     command_logger('verbose', $command, $rc, $command_output);

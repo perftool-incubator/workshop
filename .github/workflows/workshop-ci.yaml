@@ -21,19 +21,28 @@ concurrency:
 
 jobs:
   workshop-ci:
-    runs-on: ubuntu-latest
+    runs-on: [ self-hosted, workshop ]
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Perl Dependencies
+    - name: Install git
       run: |
-        sudo apt install libcoro-perl libjson-perl libjson-xs-perl libjson-validator-perl libdata-uuid-perl libdigest-sha-perl libcompress-raw-lzma-perl libcompress-raw-zlib-perl libcompress-raw-bzip2-perl cpanminus
-        echo
-        sudo cpanm IO::Uncompress::UnXz IO::Compress::Xz
+        sudo dnf install -y git
+
+    - name: Install container dependencies
+      run: |
+        sudo dnf install -y skopeo podman buildah
+
+    - name: Install Perl dependencies
+      run: |
+        sudo dnf install -y perl-Coro perl-JSON perl-JSON-XS perl-JSON-Validator perl-Data-UUID perl-Digest-SHA perl-Archive-Extract-xz-IO-Uncompress-UnXz.noarch
 
     - name: Install Toolbox
       run: |
+        if [ -d ~/toolbox ]; then
+          rm -Rf ~/toolbox
+        fi
         pushd ~/
         git clone https://github.com/perftool-incubator/toolbox.git
 
@@ -60,3 +69,7 @@ jobs:
         export TOOLBOX_HOME=~/toolbox
         echo
         sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci --userenv ./userenvs/fedora-ci.json
+
+    - name: Cleanup toolbox
+      run: |
+        rm -Rf ~/toolbox
