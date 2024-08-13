@@ -112,11 +112,11 @@
 			    "type": "string",
 			    "minLength": 1
 			},
-			"update-policy": {
+			"build-policy": {
 			    "type": "string",
 			    "enum": [
 				"missing",
-				"digest"
+				"ifnewer"
 			    ]
 			}
 		    },

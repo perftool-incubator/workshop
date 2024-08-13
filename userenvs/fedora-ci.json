@@ -10,7 +10,7 @@
 	"origin": {
 	    "image": "docker.io/library/fedora",
 	    "tag": "40",
-	    "update-policy": "digest"
+	    "build-policy": "ifnewer"
 	},
 	"properties": {
 	    "platform": [

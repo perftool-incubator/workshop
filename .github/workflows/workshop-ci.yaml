@@ -52,11 +52,11 @@ jobs:
         echo
         sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true
 
-    - name: Run workshop - dump-config - force-update-policy missing
+    - name: Run workshop - dump-config - force-build-policy missing
       run: |
         export TOOLBOX_HOME=~/toolbox
         echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true --force-update-policy missing
+        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true --force-build-policy missing
 
     - name: Run workshop - dump-files
       run: |

@@ -47,14 +47,14 @@ $args{'dump-files'} = 'false';
 $args{'param'} = {};
 $args{'reg-tls-verify'} = 'true';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files', '--force-update-policy' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files', '--force-build-policy' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
 my %dump_config_options = ( 'true' => 1, 'false' => 1);
 my %dump_files_options = ( 'true' => 1, 'false' => 1);
 my %reg_tls_verify_options = ( 'true' => 1, 'false' => 1);
-my %force_update_policy_options = ( 'missing' => 1, 'digest' => 1 );
+my %force_build_policy_options = ( 'missing' => 1, 'ifnewer' => 1 );
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -374,7 +374,7 @@ sub usage {
     logger("info", "--dump-files <true|false*>                 Dump the files that are being manually handled\n");
     logger("info", "--param <key>=<value>                      When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
     logger("info", "--reg-tls-verify <true*|false>             Use TLS for remote registry actions\n");
-    logger("info", "--force-update-policy <missing*|digest>    Override the userenv's specified update policy\n");
+    logger("info", "--force-build-policy <missing*|ifnewer>    Override the userenv's specified build policy\n");
     logger("info", "\n");
 }
 
@@ -501,11 +501,11 @@ sub arg_handler {
         } else {
             die("--reg-tls-verify must be one of 'true' or 'false' [not '$opt_value']");
         }
-    } elsif ($opt_name eq "force-update-policy") {
-        if (exists ($force_update_policy_options{$opt_value})) {
-            $args{'force-update-policy'} = $opt_value;
+    } elsif ($opt_name eq "force-build-policy") {
+        if (exists ($force_build_policy_options{$opt_value})) {
+            $args{'force-build-policy'} = $opt_value;
         } else {
-            die("--force-update-policy must be one of 'missing' or 'digest' [not '$opt_value']");
+            die("--force-build-policy must be one of 'missing' or 'ifnewer' [not '$opt_value']");
         }
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
@@ -533,7 +533,7 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,
                 "dump-files=s" => \&arg_handler,
                 "reg-tls-verify=s" => \&arg_handler,
-                "force-update-policy=s" => \&arg_handler)) {
+                "force-build-policy=s" => \&arg_handler)) {
     usage();
     die("Error in command line arguments");
 }
@@ -592,11 +592,11 @@ if ($rc == 0 and defined $userenv_json) {
     }
 }
 
-if (! exists $userenv_json->{'userenv'}{'origin'}{'update-policy'}) {
-    # if the loaded json does not include an update policy then
+if (! exists $userenv_json->{'userenv'}{'origin'}{'build-policy'}) {
+    # if the loaded json does not include an build policy then
     # default to "missing" which results in the same behavior we have
     # always had
-    $userenv_json->{'userenv'}{'origin'}{'update-policy'} = "missing";
+    $userenv_json->{'userenv'}{'origin'}{'build-policy'} = "missing";
 }
 
 if (exists $userenv_json->{'userenv'}{'properties'}{'platform'}) {
@@ -903,15 +903,15 @@ if ($args{'dump-config'} eq 'true') {
     my %config_dump = ();
 
     my $include_digest = 0;
-    if (exists ($args{'force-update-policy'})) {
-        if ($args{'force-update-policy'} eq 'digest') {
+    if (exists ($args{'force-build-policy'})) {
+        if ($args{'force-build-policy'} eq 'ifnewer') {
             $include_digest = 1;
-        } elsif ($args{'force-update-policy'} eq 'missing') {
+        } elsif ($args{'force-build-policy'} eq 'missing') {
             $include_digest = 0;
         }
-    } elsif ($userenv_json->{'userenv'}{'origin'}{'update-policy'} eq 'digest') {
+    } elsif ($userenv_json->{'userenv'}{'origin'}{'build-policy'} eq 'ifnewer') {
         $include_digest = 1;
-    } elsif ($userenv_json->{'userenv'}{'origin'}{'update-policy'} eq 'missing') {
+    } elsif ($userenv_json->{'userenv'}{'origin'}{'build-policy'} eq 'missing') {
         $include_digest = 0;
     } else {
         die("I'm confused, how did I get here [include_digest]?")
