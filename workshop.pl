@@ -47,13 +47,14 @@ $args{'dump-files'} = 'false';
 $args{'param'} = {};
 $args{'reg-tls-verify'} = 'true';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files', '--force-build-policy' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
 my %dump_config_options = ( 'true' => 1, 'false' => 1);
 my %dump_files_options = ( 'true' => 1, 'false' => 1);
 my %reg_tls_verify_options = ( 'true' => 1, 'false' => 1);
+my %force_build_policy_options = ( 'missing' => 1, 'ifnewer' => 1 );
 
 my @virtual_fs = ('dev', 'proc', 'sys');
 
@@ -149,7 +150,9 @@ sub get_exit_code {
         'package_remove' => 93,
         'group_remove' => 94,
         'architecture_query_failed' => 95,
-        'unsupported_platform_architecture' => 96
+        'unsupported_platform_architecture' => 96,
+        'skopeo_inspect_failed' => 97,
+        'skopeo_digest_missing' => 98
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -361,16 +364,17 @@ sub usage {
     logger("info", "\n");
     logger("info", "Optional arguments: (* denotes default)\n");
     logger("info", "\n");
-    logger("info", "--requirements <file>               Requirements file (can be used multiple times)\n");
-    logger("info", "--label <string>                    Label to apply to container image\n");
-    logger("info", "--config <file>                     Container config file\n");
-    logger("info", "--log-level <info*|verbose|debug>   Control logging output\n");
-    logger("info", "--skip-update <true|false*>         Should the container run it's distro update function\n");
-    logger("info", "--force <true|false*>               Force the container build\n");
-    logger("info", "--dump-config <true|false*>         Dump the config instead of building the container\n");
-    logger("info", "--dump-files <true|false*>          Dump the files that are being manually handled\n");
-    logger("info", "--param <key>=<value>               When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
-    logger("info", "--reg-tls-verify <true*|false>      Use TLS for remote registry actions\n");
+    logger("info", "--requirements <file>                      Requirements file (can be used multiple times)\n");
+    logger("info", "--label <string>                           Label to apply to container image\n");
+    logger("info", "--config <file>                            Container config file\n");
+    logger("info", "--log-level <info*|verbose|debug>          Control logging output\n");
+    logger("info", "--skip-update <true|false*>                Should the container run it's distro update function\n");
+    logger("info", "--force <true|false*>                      Force the container build\n");
+    logger("info", "--dump-config <true|false*>                Dump the config instead of building the container\n");
+    logger("info", "--dump-files <true|false*>                 Dump the files that are being manually handled\n");
+    logger("info", "--param <key>=<value>                      When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
+    logger("info", "--reg-tls-verify <true*|false>             Use TLS for remote registry actions\n");
+    logger("info", "--force-build-policy <missing*|ifnewer>    Override the userenv's specified build policy\n");
     logger("info", "\n");
 }
 
@@ -497,6 +501,12 @@ sub arg_handler {
         } else {
             die("--reg-tls-verify must be one of 'true' or 'false' [not '$opt_value']");
         }
+    } elsif ($opt_name eq "force-build-policy") {
+        if (exists ($force_build_policy_options{$opt_value})) {
+            $args{'force-build-policy'} = $opt_value;
+        } else {
+            die("--force-build-policy must be one of 'missing' or 'ifnewer' [not '$opt_value']");
+        }
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -522,7 +532,8 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "param=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,
                 "dump-files=s" => \&arg_handler,
-                "reg-tls-verify=s" => \&arg_handler)) {
+                "reg-tls-verify=s" => \&arg_handler,
+                "force-build-policy=s" => \&arg_handler)) {
     usage();
     die("Error in command line arguments");
 }
@@ -579,6 +590,13 @@ if ($rc == 0 and defined $userenv_json) {
         logger('error', "Unkown error: $rc'\n");
         exit(get_exit_code('failed_opening_userenv'));
     }
+}
+
+if (! exists $userenv_json->{'userenv'}{'origin'}{'build-policy'}) {
+    # if the loaded json does not include an build policy then
+    # default to "missing" which results in the same behavior we have
+    # always had
+    $userenv_json->{'userenv'}{'origin'}{'build-policy'} = "missing";
 }
 
 if (exists $userenv_json->{'userenv'}{'properties'}{'platform'}) {
@@ -882,9 +900,55 @@ if (exists($args{'config'})) {
 }
 
 if ($args{'dump-config'} eq 'true') {
-    logger('info', "Config dump:\n");
-
     my %config_dump = ();
+
+    my $include_digest = 0;
+    if (exists ($args{'force-build-policy'})) {
+        if ($args{'force-build-policy'} eq 'ifnewer') {
+            $include_digest = 1;
+        } elsif ($args{'force-build-policy'} eq 'missing') {
+            $include_digest = 0;
+        }
+    } elsif ($userenv_json->{'userenv'}{'origin'}{'build-policy'} eq 'ifnewer') {
+        $include_digest = 1;
+    } elsif ($userenv_json->{'userenv'}{'origin'}{'build-policy'} eq 'missing') {
+        $include_digest = 0;
+    } else {
+        die("I'm confused, how did I get here [include_digest]?")
+    }
+
+    if ($include_digest == 1) {
+        # get the userenv digest to include in the config dump -- this
+        # can be used by callers that are analyzing the dumped config
+        # to know whether or not the origin image has changed
+        my $image_id = $userenv_json->{'userenv'}{'origin'}{'image'} . ":" . $userenv_json->{'userenv'}{'origin'}{'tag'};
+        my $skopeo_url;
+        if (($image_id =~ /^dir:/) || ($image_id =~ /^docker:\/\//)) {
+            $skopeo_url = $image_id;
+        } else {
+            $skopeo_url = "docker://" . $image_id;
+        }
+        logger('info', "Querying for origin image digest...\n", 1);
+        ($command, $command_output, $rc) = run_command("skopeo inspect --no-tags " . $skopeo_url);
+        if ($rc == 0) {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+
+            $command_output = filter_output($command_output);
+            my $skopeo_json = decode_json($command_output);
+            if (exists ($skopeo_json->{'Digest'})) {
+                $userenv_json->{'userenv'}{'origin'}{'digest'} = $skopeo_json->{'Digest'};
+            } else {
+                logger('error', "Query results do not contain a digest");
+                exit(get_exit_code('skopeo_digest_missing'));
+            }
+        } else {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to query " . $skopeo_url);
+            exit(get_exit_code('skopeo_inspect_failed'));
+        }
+    }
 
     # consolidate information to be dumped
     $config_dump{'userenv'} = $userenv_json;
@@ -899,6 +963,7 @@ if ($args{'dump-config'} eq 'true') {
         delete $config_dump{'requirements'}[$i]{'sha256'};
     }
 
+    logger('info', "Config dump:\n");
     logger('info', Data::Dumper->Dump([\%config_dump], [qw(*config_dump)]));
 
     exit()
@@ -919,42 +984,37 @@ if ($args{'dump-files'} eq 'true') {
 }
 
 my $container_mount_point;
+my $origin_image_id;
 
 # acquire the userenv from the origin
-logger('info', "Looking for container base image...\n");
-($command, $command_output, $rc) = run_command("buildah images --json " . delete_proto($userenv_json->{'userenv'}{'origin'}{'image'}) . ":$userenv_json->{'userenv'}{'origin'}{'tag'}");
+logger('info', "Attempting to download the latest version of $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}...\n", 1);
+($command, $command_output, $rc) = run_command("buildah pull --quiet --policy=ifnewer --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
 if ($rc == 0) {
-    logger('info', "Found $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} locally\n", 1);
+    logger('info', "succeeded\n", 2);
     command_logger('verbose', $command, $rc, $command_output);
+
     $command_output = filter_output($command_output);
-    $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
-} else {
-    command_logger('verbose', $command, $rc, $command_output);
-    logger('info', "Could not find $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}, attempting to download...\n", 1);
-    ($command, $command_output, $rc) = run_command("buildah pull --quiet --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+    chomp($command_output);
+    $origin_image_id = $command_output;
+
+    logger('info', "Querying for information about the image...\n", 1);
+    ($command, $command_output, $rc) = run_command("buildah images --json " . $origin_image_id);
     if ($rc == 0) {
         logger('info', "succeeded\n", 2);
         command_logger('verbose', $command, $rc, $command_output);
-
-        logger('info', "Querying for information about the image...\n", 1);
-        ($command, $command_output, $rc) = run_command("buildah images --json " . delete_proto($userenv_json->{'userenv'}{'origin'}{'image'}) . ":$userenv_json->{'userenv'}{'origin'}{'tag'}");
-        if ($rc == 0) {
-            logger('info', "succeeded\n", 2);
-            command_logger('verbose', $command, $rc, $command_output);
-            $command_output = filter_output($command_output);
-            $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
-        } else {
-            logger('info', "failed\n", 2);
-            command_logger('error', $command, $rc, $command_output);
-            logger('error', "Failed to download/query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
-            exit(get_exit_code('image_query'));
-        }
+        $command_output = filter_output($command_output);
+        $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
     } else {
         logger('info', "failed\n", 2);
         command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to download $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
-        exit(get_exit_code('image_origin_pull'));
+        logger('error', "Failed to query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} ($origin_image_id)!\n");
+        exit(get_exit_code('image_query'));
     }
+} else {
+    logger('info', "failed\n", 2);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Failed to download $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
+    exit(get_exit_code('image_origin_pull'));
 }
 
 logger('debug', "Userenv JSON:\n");
@@ -1093,11 +1153,11 @@ if ($remove_image) {
 
 # create a new container based on the userenv source
 logger('info', "Creating temporary container...\n");
-($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $origin_image_id");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
-    logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'origin'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}'!\n");
+    logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'origin'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}' ($origin_image_id)!\n");
     exit(get_exit_code('create_container'));
 } else {
     logger('info', "succeeded\n", 1);
