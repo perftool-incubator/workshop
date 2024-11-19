@@ -47,7 +47,7 @@ $args{'dump-files'} = 'false';
 $args{'param'} = {};
 $args{'reg-tls-verify'} = 'true';
 
-my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files', '--force-build-policy' );
+my @cli_args = ( '--log-level', '--requirements', '--skip-update', '--userenv', '--force', '--config', '--dump-config', '--dump-files', '--force-build-policy', '--registries-json' );
 my %log_levels = ( 'info' => 1, 'verbose' => 1, 'debug' => 1 );
 my %update_options = ( 'true' => 1, 'false' => 1 );
 my %force_options = ( 'true' => 1, 'false' => 1 );
@@ -152,7 +152,15 @@ sub get_exit_code {
         'architecture_query_failed' => 95,
         'unsupported_platform_architecture' => 96,
         'skopeo_inspect_failed' => 97,
-        'skopeo_digest_missing' => 98
+        'skopeo_digest_missing' => 98,
+        'registries_json_failed_validation' => 99,
+        'registries_json_invalid_json' => 100,
+        'registries_json_missing' => 101,
+        'failed_opening_registries_json' => 102,
+        'registries_json_unknown_loading_error' => 103,
+        'userenv_unknown_loading_error' => 104,
+        'config_unknown_load_error' => 105,
+        'pull_token_not_found' => 106
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -375,6 +383,7 @@ sub usage {
     logger("info", "--param <key>=<value>                      When <key> is found in the userenv and/or requirements file, substitute <value> for it\n");
     logger("info", "--reg-tls-verify <true*|false>             Use TLS for remote registry actions\n");
     logger("info", "--force-build-policy <missing*|ifnewer>    Override the userenv's specified build policy\n");
+    logger("info", "--registries-json <file>                   A configuration file (most likely from Crucible) with details on how to access various image registries\n");
     logger("info", "\n");
 }
 
@@ -507,6 +516,8 @@ sub arg_handler {
         } else {
             die("--force-build-policy must be one of 'missing' or 'ifnewer' [not '$opt_value']");
         }
+    } elsif ($opt_name eq "registries-json") {
+        $args{'registries-json'} = $opt_value;
     } else {
         die("I'm confused, how did I get here [$opt_name]?");
     }
@@ -533,7 +544,8 @@ if (!GetOptions("completions=s" => \&arg_handler,
                 "dump-config=s" => \&arg_handler,
                 "dump-files=s" => \&arg_handler,
                 "reg-tls-verify=s" => \&arg_handler,
-                "force-build-policy=s" => \&arg_handler)) {
+                "force-build-policy=s" => \&arg_handler,
+                "registries-json=s" => \&arg_handler)) {
     usage();
     die("Error in command line arguments");
 }
@@ -555,6 +567,7 @@ my $command;
 my $command_output;
 my $dirname = dirname(__FILE__);
 my $schema_location = $dirname . "/schema.json";
+my $registries_schema_location = $dirname . "/registries-schema.json";
 
 logger('info', "Using '$schema_location' for JSON input file schema validation\n");
 logger('info', "Loading userenv definition from '$args{'userenv'}'...\n");
@@ -587,9 +600,16 @@ if ($rc == 0 and defined $userenv_json) {
         logger('error', "Userenv file $args{'userenv'} open failed\n");
         exit(get_exit_code('failed_opening_userenv'));
     } else {
-        logger('error', "Unkown error: $rc'\n");
-        exit(get_exit_code('failed_opening_userenv'));
+        logger('error', "Unknown error: $rc'\n");
+        exit(get_exit_code('userenv_unknown_loading_error'));
     }
+}
+
+if (! exists $userenv_json->{'userenv'}{'origin'}{'requires-pull-token'}) {
+    # if the loaded json does not include requires-pull-token then
+    # default to "false" which results in the same behavior we have
+    # always had
+    $userenv_json->{'userenv'}{'origin'}{'requires-pull-token'} = "false";
 }
 
 if (! exists $userenv_json->{'userenv'}{'origin'}{'build-policy'}) {
@@ -671,6 +691,47 @@ my @checksums;
 
 push(@checksums, $userenv_json->{'sha256'});
 
+my $registries_json;
+if (exists($args{'registries-json'})) {
+    logger('info', "Loading registries JSON...\n");
+    logger('info', "'$args{'registries-json'}...\n", 1);
+
+    (my $rc, $registries_json) = get_json_file($args{'registries-json'}, $registries_schema_location);
+    if ($rc == 0) {
+        logger('info', "succeeded\n", 2);
+    } else {
+        logger('info', "failed\n", 2);
+        if ($rc == 2) {
+            logger('error', "Schema file $registries_schema_location not found!\n");
+            exit(get_exit_code('schema_not_found'));
+        } elsif ($rc == 3) {
+            logger('error', "Cannot open schema file: $registries_schema_location\n");
+            exit(get_exit_code('failed_opening_schema'));
+        } elsif ($rc == 4) {
+            logger('error', "Schema $registries_schema_location is invalid JSON!\n");
+            exit(get_exit_code('schema_invalid_json'));
+        } elsif ($rc == 5) {
+            logger('error', "Schema validation for registries JSON userenv $args{'registries-json'} using schema '$registries_schema_location' failed!\n");
+            exit(get_exit_code('registries_json_failed_validation'));
+        } elsif ($rc == 6) {
+            logger('error', "Registries JSON $args{'registries-json'} is invalid JSON!\n");
+            exit(get_exit_code('registries_json_invalid_json'));
+        } elsif ($rc == 8) {
+            logger('error', "Registries JSON file $args{'registries-json'} not found\n");
+            exit(get_exit_code('registries_json_missing'));
+        } elsif ($rc == 9) {
+            logger('error', "Registries JSON file $args{'registries-json'} open failed\n");
+            exit(get_exit_code('failed_opening_registries_json'));
+        } else {
+            logger('error', "Unkown error: $rc'\n");
+            exit(get_exit_code('registries_json_unknown_loading_error'));
+        }
+    }
+
+    logger('debug', "Registries JSON:\n");
+    logger('debug', Dumper($registries_json))
+}
+
 logger('info', "Loading requested requirements...\n");
 
 logger('info', "'$args{'userenv'}'...\n", 1);
@@ -721,7 +782,7 @@ foreach my $req (@{$args{'reqs'}}) {
             logger('error', "Requirement file '$req' not found\n");
             exit(get_exit_code('requirement_missing'));
         } else {
-            logger('error', "Unkown error'\n");
+            logger('error', "Unknown error'\n");
             exit(get_exit_code('failed_opening_requirement'));
         }
     }
@@ -884,8 +945,8 @@ if (exists($args{'config'})) {
             logger('error', "Config file '$args{'userenv'} open failed'\n");
             exit(get_exit_code('failed_opening_config'));
         } else {
-            logger('error', "Unkown error'\n");
-            exit(get_exit_code('failed_opening_config'));
+            logger('error', "Unknown error'\n");
+            exit(get_exit_code('config_unknown_load_error'));
         }
     }
 
@@ -986,32 +1047,78 @@ if ($args{'dump-files'} eq 'true') {
 my $container_mount_point;
 my $origin_image_id;
 
+my $tls_verify = $args{'reg-tls-verify'};
+my $authfile_arg = "";
+if ($userenv_json->{'userenv'}{'origin'}{'requires-pull-token'} eq "true") {
+    logger('info', "Checking registries JSON for a pull token...\n");
+
+    my $found_pull_token = 0;
+
+    if (exists($registries_json->{'engines'}{'private'})) {
+        if ($registries_json->{'engines'}{'private'}{'url'} eq $userenv_json->{'userenv'}{'origin'}{'image'}) {
+            $found_pull_token = 1;
+            logger('info', "found " . $registries_json->{'engines'}{'private'}{'tokens'}{'pull'} . " for " . $registries_json->{'engines'}{'private'}{'url'} . " private engines repository\n", 1);
+
+            $authfile_arg = "--authfile=" . $registries_json->{'engines'}{'private'}{'tokens'}{'pull'};
+
+            if (exists($registries_json->{'engines'}{'private'}{'tls-verify'})) {
+                $tls_verify = $registries_json->{'engines'}{'private'}{'tls-verify'};
+            }
+        } else {
+            logger('debug', "does not match " . $registries_json->{'engines'}{'private'}{'url'} . "\n", 1);
+        }
+    }
+
+    if (($found_pull_token == 0) && exists($registries_json->{'userenvs'})) {
+        foreach my $userenv (@{$registries_json->{'userenvs'}}) {
+            if ($userenv->{'url'} eq $userenv_json->{'userenv'}{'origin'}{'image'}) {
+                $found_pull_token = 1;
+                logger('info', "found " . $userenv->{'pull-token'} . " for " . $userenv->{'url'} . "\n", 1);
+
+                $authfile_arg = "--authfile=" . $userenv->{'pull-token'};
+
+                if (exists($userenv->{'tls-verify'})) {
+                    $tls_verify = $userenv->{'tls-verify'};
+                }
+            } else {
+                logger('debug', "does not match " . $userenv->{'url'} . "\n", 1);
+            }
+        }
+    }
+
+    if ($found_pull_token == 0) {
+        logger('info', "not found\n", 1);
+        logger('error', "Failed to locate a pull token for a userenv that requires one!\n");
+        exit(get_exit_code('pull_token_not_found'));
+    }
+}
+
 # acquire the userenv from the origin
-logger('info', "Attempting to download the latest version of $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}...\n", 1);
-($command, $command_output, $rc) = run_command("buildah pull --quiet --policy=ifnewer --tls-verify=$args{'reg-tls-verify'} $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
+logger('info', "Attempting to download the latest version of $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}...\n");
+($command, $command_output, $rc) = run_command("buildah pull --quiet --policy=ifnewer --tls-verify=$tls_verify $authfile_arg $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}");
 if ($rc == 0) {
-    logger('info', "succeeded\n", 2);
+    logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
 
     $command_output = filter_output($command_output);
     chomp($command_output);
     $origin_image_id = $command_output;
 
-    logger('info', "Querying for information about the image...\n", 1);
+    logger('info', "Querying for information about the image...\n");
     ($command, $command_output, $rc) = run_command("buildah images --json " . $origin_image_id);
     if ($rc == 0) {
-        logger('info', "succeeded\n", 2);
+        logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
         $command_output = filter_output($command_output);
         $userenv_json->{'userenv'}{'origin'}{'local_details'} = decode_json($command_output);
     } else {
-        logger('info', "failed\n", 2);
+        logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to query $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'} ($origin_image_id)!\n");
         exit(get_exit_code('image_query'));
     }
 } else {
-    logger('info', "failed\n", 2);
+    logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Failed to download $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}!\n");
     exit(get_exit_code('image_origin_pull'));
