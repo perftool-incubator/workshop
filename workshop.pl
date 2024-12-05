@@ -1350,14 +1350,38 @@ if ($args{'skip-update'} eq 'false') {
                 $req_counter += 1;
                 logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
 
-                #if ($req->{'type'} eq 'files') {
+                if ($req->{'type'} eq 'files') {
                     #$files_channel->put($req->{'index'});
                     #my $msg = $return_channel->get;
                     #if ($msg ne 'go') {
                         #exit($msg);
                     #}
-                # was elsif {
-                if ($req->{'type'} eq 'distro-manual') {
+                    foreach my $file (@{$req->{'files_info'}{'files'}}) {
+                        $file->{'src'} = param_replacement($file->{'src'}, 2);
+                        if (exists($file->{'dst'})) {
+                            $file->{'dst'} = param_replacement($file->{'dst'}, 2);
+                        }
+                        logger('info', "copying '$file->{'src'}'...\n", 2);
+                   
+                        if (exists($file->{'dst'})) {
+                            ($command, $command_output, $rc) = run_command("buildah add $tmp_container $file->{'src'} $file->{'dst'}");
+                            if ($rc != 0) {
+                                logger('info', "failed\n", 3);
+                                command_logger('error', $command, $rc, $command_output);
+                                logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
+                                #$return_channel->put(get_exit_code('local-copy_failed'));
+                            } else {
+                                logger('info', "succeeded\n", 3);
+                                command_logger('verbose', $command, $rc, $command_output);
+                            }
+                        } else {
+                            logger('info', "failed\n", 3);
+                            command_logger('error', $command, $rc, $command_output);
+                            logger('error', "Destination '$file->{'dst'}' not defined!\n");
+                            #$return_channel->put(get_exit_code('copy_dst_missing'));
+                        }
+                    }
+                } elsif ($req->{'type'} eq 'distro-manual') {
                     logger('info', "performing manual distro package installation...\n", 2);
 
                     if (chdir('/root')) {
@@ -1566,7 +1590,7 @@ if ($args{'skip-update'} eq 'false') {
                             }
                         }
                     }
-                } elsif ($req->{'type'} eq 'source') {
+                } elsif ($req->{'type'} eq 'source' or $req->{'type'} eq 'python3') {
                     logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
 
 
@@ -1699,31 +1723,6 @@ if ($args{'skip-update'} eq 'false') {
                                         my $command_output;
                                         my $rc;
                     
-                                        foreach my $file (@{$req->{'files_info'}{'files'}}) {
-                                            $file->{'src'} = param_replacement($file->{'src'}, 2);
-                                            if (exists($file->{'dst'})) {
-                                                $file->{'dst'} = param_replacement($file->{'dst'}, 2);
-                                            }
-                                            logger('info', "copying '$file->{'src'}'...\n", 2);
-                    
-                                            if (exists($file->{'dst'})) {
-                                                ($command, $command_output, $rc) = run_command("buildah add $tmp_container $file->{'src'} $file->{'dst'}");
-                                                if ($rc != 0) {
-                                                    logger('info', "failed\n", 3);
-                                                    command_logger('error', $command, $rc, $command_output);
-                                                    logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
-                                                    $return_channel->put(get_exit_code('local-copy_failed'));
-                                                } else {
-                                                    logger('info', "succeeded\n", 3);
-                                                    command_logger('verbose', $command, $rc, $command_output);
-                                                }
-                                            } else {
-                                                logger('info', "failed\n", 3);
-                                                command_logger('error', $command, $rc, $command_output);
-                                                logger('error', "Destination '$file->{'dst'}' not defined!\n");
-                                                $return_channel->put(get_exit_code('copy_dst_missing'));
-                                            }
-                                        }
                                     }
                                     $return_channel->put('go');
                                 }
@@ -1738,83 +1737,114 @@ if ($args{'skip-update'} eq 'false') {
                     ######
                     #if (chdir('/root')) {
                     ######
+                                if ($req->{'type'} eq 'source') {
 
-                                my $build_cmd_log = "";
-                                logger('info', "downloading...\n", 3);
-                                my $max_download_attempts = 3;
-                                my $download_attempts = 1;
-                                $rc = 1;
-                                while (($download_attempts <= $max_download_attempts) &&
-                                       ($rc != 0)) {
-                                    ($command, $command_output, $rc) = run_command("curl --fail --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
-                                    $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                    $download_attempts++;
-                                    if ($rc != 0) {
-                                        sleep 1;
-                                    }
-                                }
-                                if ($rc == 0) {
-                                    logger('info', "getting directory...\n", 3);
-                                    ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
-                                    $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                    $command_output = filter_output($command_output);
-                                    my $get_dir = $command_output;
-                                    chomp($get_dir);
-                                    if ($rc == 0) {
-                                        logger('info', "unpacking...\n", 3);
-                                        ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'unpack'}");
+                                    my $build_cmd_log = "";
+                                    logger('info', "downloading...\n", 3);
+                                    my $max_download_attempts = 3;
+                                    my $download_attempts = 1;
+                                    $rc = 1;
+                                    while (($download_attempts <= $max_download_attempts) &&
+                                        ($rc != 0)) {
+                                        ($command, $command_output, $rc) = run_command("curl --fail --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
                                         $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                        $download_attempts++;
+                                        if ($rc != 0) {
+                                            sleep 1;
+                                        }
+                                    }
+                                    if ($rc == 0) {
+                                        logger('info', "getting directory...\n", 3);
+                                        ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
+                                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                        $command_output = filter_output($command_output);
+                                        my $get_dir = $command_output;
+                                        chomp($get_dir);
                                         if ($rc == 0) {
-                                            if (chdir($get_dir)) {
-                                                logger('info', "building...\n", 3);
-                                                foreach my $build_cmd (@{$req->{'source_info'}{'commands'}{'commands'}}) {
-                                                    logger('info', "executing '$build_cmd'...\n", 4);
-                                                    ($command, $command_output, $rc) = run_command("$build_cmd");
-                                                    $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                                    if ($rc != 0) {
-                                                        logger('info', "failed\n", 5);
-                                                        logger('error', $build_cmd_log);
-                                                        logger('error', "Build failed on command '$build_cmd'!\n");
-                                                        quit_files_coro($files_requirements_present, $files_channel);
-                                                        exit(get_exit_code('build_failed'));
+                                            logger('info', "unpacking...\n", 3);
+                                            ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'unpack'}");
+                                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                            if ($rc == 0) {
+                                                if (chdir($get_dir)) {
+                                                    logger('info', "building...\n", 3);
+                                                    foreach my $build_cmd (@{$req->{'source_info'}{'commands'}{'commands'}}) {
+                                                        logger('info', "executing '$build_cmd'...\n", 4);
+                                                        ($command, $command_output, $rc) = run_command("$build_cmd");
+                                                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                                        if ($rc != 0) {
+                                                            logger('info', "failed\n", 5);
+                                                            logger('error', $build_cmd_log);
+                                                            logger('error', "Build failed on command '$build_cmd'!\n");
+                                                            quit_files_coro($files_requirements_present, $files_channel);
+                                                            exit(get_exit_code('build_failed'));
+                                                        }
                                                     }
+                                                    logger('info', "succeeded\n", 3);
+                                                    logger('verbose', $build_cmd_log);
+                                                } else {
+                                                    logger('info', "failed\n", 3);
+                                                    logger('error', $build_cmd_log);
+                                                    logger('error', "Could not chdir to '$get_dir'!\n");
+                                                    quit_files_coro($files_requirements_present, $files_channel);
+                                                    exit(get_exit_code('chdir_failed'));
                                                 }
-                                                logger('info', "succeeded\n", 3);
-                                                logger('verbose', $build_cmd_log);
                                             } else {
                                                 logger('info', "failed\n", 3);
                                                 logger('error', $build_cmd_log);
-                                                logger('error', "Could not chdir to '$get_dir'!\n");
+                                                logger('error', "Could not unpack source package!\n");
                                                 quit_files_coro($files_requirements_present, $files_channel);
-                                                exit(get_exit_code('chdir_failed'));
+                                                    exit(get_exit_code('unpack_failed'));
                                             }
                                         } else {
                                             logger('info', "failed\n", 3);
                                             logger('error', $build_cmd_log);
-                                            logger('error', "Could not unpack source package!\n");
+                                            logger('error', "Could not get unpack directory!\n");
                                             quit_files_coro($files_requirements_present, $files_channel);
-                                            exit(get_exit_code('unpack_failed'));
+                                            exit(get_exit_code('unpack_dir_not_found'));
                                         }
                                     } else {
                                         logger('info', "failed\n", 3);
                                         logger('error', $build_cmd_log);
-                                        logger('error', "Could not get unpack directory!\n");
+                                        logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
                                         quit_files_coro($files_requirements_present, $files_channel);
-                                        exit(get_exit_code('unpack_dir_not_found'));
+                                        exit(get_exit_code('download_failed'));
                                     }
-                                } else {
-                                    logger('info', "failed\n", 3);
-                                    logger('error', $build_cmd_log);
-                                    logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
-                                    quit_files_coro($files_requirements_present, $files_channel);
-                                    exit(get_exit_code('download_failed'));
+                                #} else {
+                                    #logger('info', "failed\n", 2);
+                                        #logger('error', "Could not chdir to /root!\n");
+                                    #quit_files_coro($files_requirements_present, $files_channel);
+                                    #exit(get_exit_code('chdir_failed'));
+                                #}
+
+                                } elsif ($req->{'type'} eq 'python3') {
+    
+
+                                    logger('info', "installing package via python3 pip...\n", 2);
+
+                                    my $python3_install_log = "";
+                                    foreach my $python3_package (@{$req->{'python3_info'}{'packages'}}) {
+                                        logger('info', "python3 pip installing '$python3_package'...\n", 3);
+                                        ($command, $command_output, $rc) = run_command("/usr/bin/python3 -m pip install $python3_package");
+                                        $python3_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                                        if ($rc != 0){
+                                            logger('info', "failed [rc=$rc]\n", 4);
+                                            logger('error', $python3_install_log);
+                                            logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
+                                            quit_files_coro($files_requirements_present, $files_channel);
+                                            exit(get_exit_code('python3_install_failed'));
+                                        } else {
+                                            logger('info', $python3_install_log);
+                                        }
+                                    }
+                                    logger('info', "succeeded\n", 4);
+                                    logger('verbose', $python3_install_log);
+
                                 }
-                            } else {
-                                logger('info', "failed\n", 2);
-                                logger('error', "Could not chdir to /root!\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('chdir_failed'));
+
                             }
+
+                        }
+
 
                         quit_files_coro($files_requirements_present, $files_channel);
 
@@ -1940,7 +1970,7 @@ if ($args{'skip-update'} eq 'false') {
                     }
                     logger('info', "succeeded\n", 4);
                     logger('verbose', $cpan_install_log);
-                  } elsif ($req->{'type'} eq 'node') {
+                } elsif ($req->{'type'} eq 'node') {
                       logger('info', "installing package via npm install...\n", 2);
  
                       my $npm_install_log = "";
@@ -1958,27 +1988,8 @@ if ($args{'skip-update'} eq 'false') {
                       }
                       logger('info', "succeeded\n", 4);
                       logger('verbose', $npm_install_log);
-                  } elsif ($req->{'type'} eq 'python3') {
-                      logger('info', "installing package via python3 pip...\n", 2);
-
-                      my $python3_install_log = "";
-                      foreach my $python3_package (@{$req->{'python3_info'}{'packages'}}) {
-                          logger('info', "python3 pip installing '$python3_package'...\n", 3);
-                          ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $tmp_container -- /usr/bin/python3 -m pip install $python3_package");
-                          $python3_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                          if ($rc != 0){
-                              logger('info', "failed [rc=$rc]\n", 4);
-                              logger('error', $python3_install_log);
-                              logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
-                              #quit_files_coro($files_requirements_present, $files_channel);
-                              exit(get_exit_code('python3_install_failed'));
-                          }
-                      }
-                      logger('info', "succeeded\n", 4);
-                      logger('verbose', $python3_install_log);
                 }
             }
-        }
 
         if ($distro_installs) {
             logger('info', "Cleaning up after performing distro package installations...\n");
