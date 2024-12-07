@@ -960,6 +960,52 @@ if (exists($args{'config'})) {
     push(@checksums, $config_json->{'sha256'});
 }
 
+my $tls_verify = $args{'reg-tls-verify'};
+my $authfile_arg = "";
+if ($userenv_json->{'userenv'}{'origin'}{'requires-pull-token'} eq "true") {
+    logger('info', "Checking registries JSON for a pull token...\n");
+
+    my $found_pull_token = 0;
+
+    if (exists($registries_json->{'engines'}{'private'})) {
+        if ($registries_json->{'engines'}{'private'}{'url'} eq $userenv_json->{'userenv'}{'origin'}{'image'}) {
+            $found_pull_token = 1;
+            logger('info', "found " . $registries_json->{'engines'}{'private'}{'tokens'}{'pull'} . " for " . $registries_json->{'engines'}{'private'}{'url'} . " private engines repository\n", 1);
+
+            $authfile_arg = "--authfile=" . $registries_json->{'engines'}{'private'}{'tokens'}{'pull'};
+
+            if (exists($registries_json->{'engines'}{'private'}{'tls-verify'})) {
+                $tls_verify = $registries_json->{'engines'}{'private'}{'tls-verify'};
+            }
+        } else {
+            logger('debug', "does not match " . $registries_json->{'engines'}{'private'}{'url'} . "\n", 1);
+        }
+    }
+
+    if (($found_pull_token == 0) && exists($registries_json->{'userenvs'})) {
+        foreach my $userenv (@{$registries_json->{'userenvs'}}) {
+            if ($userenv->{'url'} eq $userenv_json->{'userenv'}{'origin'}{'image'}) {
+                $found_pull_token = 1;
+                logger('info', "found " . $userenv->{'pull-token'} . " for " . $userenv->{'url'} . "\n", 1);
+
+                $authfile_arg = "--authfile=" . $userenv->{'pull-token'};
+
+                if (exists($userenv->{'tls-verify'})) {
+                    $tls_verify = $userenv->{'tls-verify'};
+                }
+            } else {
+                logger('debug', "does not match " . $userenv->{'url'} . "\n", 1);
+            }
+        }
+    }
+
+    if ($found_pull_token == 0) {
+        logger('info', "not found\n", 1);
+        logger('error', "Failed to locate a pull token for a userenv that requires one!\n");
+        exit(get_exit_code('pull_token_not_found'));
+    }
+}
+
 if ($args{'dump-config'} eq 'true') {
     my %config_dump = ();
 
@@ -990,7 +1036,7 @@ if ($args{'dump-config'} eq 'true') {
             $skopeo_url = "docker://" . $image_id;
         }
         logger('info', "Querying for origin image digest...\n", 1);
-        ($command, $command_output, $rc) = run_command("skopeo inspect --no-tags " . $skopeo_url);
+        ($command, $command_output, $rc) = run_command("skopeo inspect --no-tags " . $authfile_arg . " " . $skopeo_url);
         if ($rc == 0) {
             logger('info', "succeeded\n", 2);
             command_logger('verbose', $command, $rc, $command_output);
@@ -1046,52 +1092,6 @@ if ($args{'dump-files'} eq 'true') {
 
 my $container_mount_point;
 my $origin_image_id;
-
-my $tls_verify = $args{'reg-tls-verify'};
-my $authfile_arg = "";
-if ($userenv_json->{'userenv'}{'origin'}{'requires-pull-token'} eq "true") {
-    logger('info', "Checking registries JSON for a pull token...\n");
-
-    my $found_pull_token = 0;
-
-    if (exists($registries_json->{'engines'}{'private'})) {
-        if ($registries_json->{'engines'}{'private'}{'url'} eq $userenv_json->{'userenv'}{'origin'}{'image'}) {
-            $found_pull_token = 1;
-            logger('info', "found " . $registries_json->{'engines'}{'private'}{'tokens'}{'pull'} . " for " . $registries_json->{'engines'}{'private'}{'url'} . " private engines repository\n", 1);
-
-            $authfile_arg = "--authfile=" . $registries_json->{'engines'}{'private'}{'tokens'}{'pull'};
-
-            if (exists($registries_json->{'engines'}{'private'}{'tls-verify'})) {
-                $tls_verify = $registries_json->{'engines'}{'private'}{'tls-verify'};
-            }
-        } else {
-            logger('debug', "does not match " . $registries_json->{'engines'}{'private'}{'url'} . "\n", 1);
-        }
-    }
-
-    if (($found_pull_token == 0) && exists($registries_json->{'userenvs'})) {
-        foreach my $userenv (@{$registries_json->{'userenvs'}}) {
-            if ($userenv->{'url'} eq $userenv_json->{'userenv'}{'origin'}{'image'}) {
-                $found_pull_token = 1;
-                logger('info', "found " . $userenv->{'pull-token'} . " for " . $userenv->{'url'} . "\n", 1);
-
-                $authfile_arg = "--authfile=" . $userenv->{'pull-token'};
-
-                if (exists($userenv->{'tls-verify'})) {
-                    $tls_verify = $userenv->{'tls-verify'};
-                }
-            } else {
-                logger('debug', "does not match " . $userenv->{'url'} . "\n", 1);
-            }
-        }
-    }
-
-    if ($found_pull_token == 0) {
-        logger('info', "not found\n", 1);
-        logger('error', "Failed to locate a pull token for a userenv that requires one!\n");
-        exit(get_exit_code('pull_token_not_found'));
-    }
-}
 
 # acquire the userenv from the origin
 logger('info', "Attempting to download the latest version of $userenv_json->{'userenv'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}...\n");
