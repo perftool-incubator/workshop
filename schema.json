@@ -125,6 +125,13 @@
 				"missing",
 				"ifnewer"
 			    ]
+			},
+			"update-policy": {
+			    "type": "string",
+			    "enum": [
+				"always",
+				"never"
+			    ]
 			}
 		    },
 		    "required": [
