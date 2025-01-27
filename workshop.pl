@@ -76,6 +76,10 @@ my $req_counter;
 my $update_cmd = "";
 my $clean_cmd = "";
 my $getsrc_cmd;
+my $volume_opt = "";
+if (-e "/run/secrets" ) {
+    $volume_opt = "--volume /run/secrets:/run/secrets"
+}
 
 sub quit_files_coro {
     my ($present, $channel) = @_;
@@ -551,7 +555,7 @@ sub install_manual {
     my $command, my $command_output, my $rc;
     foreach my $cmd (@{$req->{'manual_info'}{'commands'}}) {
         logger('info', "executing '$cmd'...\n", 3);
-        ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $cmd");
+        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $cmd");
         $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
             logger('info', "failed [rc=$rc]\n", 4);
@@ -574,7 +578,7 @@ sub install_cpan {
     my $command, my $command_output, my $rc;
     foreach my $cpan_package (@{$req->{'cpan_info'}{'packages'}}) {
         logger('info', "cpan installing '$cpan_package'...\n", 3);
-        ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- cpanm $cpan_package");
+        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- cpanm $cpan_package");
         $cpan_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
             logger('info', "failed [rc=$rc]\n", 4);
@@ -597,7 +601,7 @@ sub install_node {
     my $command, my $command_output, my $rc;
     foreach my $node_package (@{$req->{'node_info'}{'packages'}}) {
         logger('info', "npm installing '$node_package'...\n", 3);
-        ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- npm install $node_package");
+        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- npm install $node_package");
         $npm_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
             logger('info', "failed [rc=$rc]\n", 4);
@@ -766,7 +770,7 @@ sub install_distro_manual {
 	    my $command_output;
             while (($download_attempts <= $max_download_attempts) &&
                    ($rc != 0)) {
-                ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- curl --fail --url $pkg --output $download_filename --location");
+                ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- curl --fail --url $pkg --output $download_filename --location");
                 $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                 $download_attempts++;
                 if ($rc != 0) {
@@ -784,7 +788,7 @@ sub install_distro_manual {
                     }
 
                     if ($operation_cmd ne '') {
-                        ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $operation_cmd");
+                        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
                         $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                         if ($rc != 0) {
                             sleep 1;
@@ -808,13 +812,13 @@ sub install_distro_manual {
                     exit(get_exit_code('unsupported_package_manager'));
                 }
 
-                ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $operation_cmd");
+                ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
                 $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                 if ($rc == 0) {
                     logger('info', "succeeded\n", 5);
 
                     logger('info', "cleaning up...\n", 4);
-                    ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- rm -v $download_filename");
+                    ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- rm -v $download_filename");
                     $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                     if ($rc == 0) {
                         logger('info', "succeeded\n", 5);
@@ -902,7 +906,7 @@ sub install_distro {
                 exit(get_exit_code('unsupported_package_manager'));
             }
 
-            (my $command, my $command_output, my $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $operation_cmd");
+            (my $command, my $command_output, my $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
             if ($rc == 0) {
                 logger('info', "succeeded\n", 4);
                 command_logger('verbose', $command, $rc, $command_output);
@@ -952,7 +956,7 @@ sub install_distro {
                 exit(get_exit_code('unsupported_package_manager'));
             }
 
-            ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $operation_cmd");
+            ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
             if ($rc == 0) {
                 logger('info', "succeeded\n", 4);
                 command_logger('verbose', $command, $rc, $command_output);
@@ -1122,7 +1126,7 @@ sub update_container_pkgs {
         if (defined $getsrc_cmd) {
             # get package-manager files list
             logger('info', "Getting package-manager sources for the temporary container...\n");
-            ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $getsrc_cmd");
+            ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $getsrc_cmd");
             if ($rc != 0) {
                 logger('info', "failed\n", 1);
                 command_logger('error', $command, $rc, $command_output);
@@ -1136,7 +1140,7 @@ sub update_container_pkgs {
 
         # update the container's existing content
         logger('info', "Updating the temporary container...\n");
-        (my $command, my $command_output, my $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $update_cmd");
+        (my $command, my $command_output, my $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $update_cmd");
         if ($rc != 0) {
             logger('info', "failed\n", 1);
             command_logger('error', $command, $rc, $command_output);
@@ -1148,7 +1152,7 @@ sub update_container_pkgs {
         }
     
         logger('info', "Cleaning up after the update...\n");
-        ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $container -- $clean_cmd");
+        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $clean_cmd");
         if ($rc != 0) {
             logger('info', "failed\n", 1);
             command_logger('error', $command, $rc, $command_output);
@@ -1988,7 +1992,7 @@ update_container_pkgs($tmp_container);
 
 if ($distro_installs) {
     logger('info', "Cleaning up after performing distro package installations...\n");
-    ($command, $command_output, $rc) = run_command("buildah run --volume /run/secrets:/run/secrets --isolation chroot $tmp_container -- $clean_cmd");
+    ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $tmp_container -- $clean_cmd");
     if ($rc != 0) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
