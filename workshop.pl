@@ -548,14 +548,13 @@ sub delete_proto {
 
 sub install_manual {
     my $req = shift;
-    my $container = shift;
     logger('info', "installing package via manually provided commands...\n", 2);
 
     my $install_cmd_log = "";
     my $command, my $command_output, my $rc;
     foreach my $cmd (@{$req->{'manual_info'}{'commands'}}) {
         logger('info', "executing '$cmd'...\n", 3);
-        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $cmd");
+        ($command, $command_output, $rc) = run_command($cmd);
         $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
             logger('info', "failed [rc=$rc]\n", 4);
@@ -571,14 +570,13 @@ sub install_manual {
 
 sub install_cpan {
     my $req = shift;
-    my $container = shift;
     logger('info', "installing package via cpan...\n", 2);
 
     my $cpan_install_log = "";
     my $command, my $command_output, my $rc;
     foreach my $cpan_package (@{$req->{'cpan_info'}{'packages'}}) {
         logger('info', "cpan installing '$cpan_package'...\n", 3);
-        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- cpanm $cpan_package");
+        ($command, $command_output, $rc) = run_command("cpanm $cpan_package");
         $cpan_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
             logger('info', "failed [rc=$rc]\n", 4);
@@ -594,14 +592,13 @@ sub install_cpan {
 
 sub install_node {
     my $req = shift;
-    my $container = shift;
     logger('info', "installing package via npm install...\n", 2);
- 
+
     my $npm_install_log = "";
     my $command, my $command_output, my $rc;
     foreach my $node_package (@{$req->{'node_info'}{'packages'}}) {
         logger('info', "npm installing '$node_package'...\n", 3);
-        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- npm install $node_package");
+        ($command, $command_output, $rc) = run_command("npm install $node_package");
         $npm_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
             logger('info', "failed [rc=$rc]\n", 4);
@@ -628,7 +625,6 @@ sub install_python {
             logger('info', "failed [rc=$rc]\n", 4);
             logger('error', $python3_install_log);
             logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
-	    #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('python3_install_failed'));
         } else {
             logger('info', $python3_install_log);
@@ -678,7 +674,7 @@ sub install_source {
                             logger('info', "failed\n", 5);
                             logger('error', $build_cmd_log);
                             logger('error', "Build failed on command '$build_cmd'!\n");
-			    #quit_files_coro($files_requirements_present, $files_channel);
+                #quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('build_failed'));
                         }
                     }
@@ -688,28 +684,28 @@ sub install_source {
                     logger('info', "failed\n", 3);
                     logger('error', $build_cmd_log);
                     logger('error', "Could not chdir to '$get_dir'!\n");
-		    #quit_files_coro($files_requirements_present, $files_channel);
+            #quit_files_coro($files_requirements_present, $files_channel);
                     exit(get_exit_code('chdir_failed'));
                 }
             } else {
                 logger('info', "failed\n", 3);
                 logger('error', $build_cmd_log);
                 logger('error', "Could not unpack source package!\n");
-		#quit_files_coro($files_requirements_present, $files_channel);
+        #quit_files_coro($files_requirements_present, $files_channel);
                     exit(get_exit_code('unpack_failed'));
             }
         } else {
             logger('info', "failed\n", 3);
             logger('error', $build_cmd_log);
             logger('error', "Could not get unpack directory!\n");
-	    #quit_files_coro($files_requirements_present, $files_channel);
+        #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('unpack_dir_not_found'));
         }
     } else {
         logger('info', "failed\n", 3);
         logger('error', $build_cmd_log);
         logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
-	#quit_files_coro($files_requirements_present, $files_channel);
+    #quit_files_coro($files_requirements_present, $files_channel);
         exit(get_exit_code('download_failed'));
     }
 }
@@ -717,18 +713,13 @@ sub install_source {
 sub install_files {
     my $req = shift;
     my $container = shift;
-    #$files_channel->put($req->{'index'});
-    #my $msg = $return_channel->get;
-    #if ($msg ne 'go') {
-        #exit($msg);
-    #}
     foreach my $file (@{$req->{'files_info'}{'files'}}) {
         $file->{'src'} = param_replacement($file->{'src'}, 2);
         if (exists($file->{'dst'})) {
             $file->{'dst'} = param_replacement($file->{'dst'}, 2);
         }
         logger('info', "copying '$file->{'src'}'...\n", 2);
-   
+
         my $command, my $command_output, my $rc;
         if (exists($file->{'dst'})) {
             ($command, $command_output, $rc) = run_command("buildah add $container $file->{'src'} $file->{'dst'}");
@@ -745,7 +736,6 @@ sub install_files {
             logger('info', "failed\n", 3);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "Destination '$file->{'dst'}' not defined!\n");
-            #$return_channel->put(get_exit_code('copy_dst_missing'));
         }
     }
 }
@@ -767,7 +757,7 @@ sub install_distro_manual {
             my $download_attempts = 1;
             my $rc = 1;
             my $command;
-	    my $command_output;
+            my $command_output;
             while (($download_attempts <= $max_download_attempts) &&
                    ($rc != 0)) {
                 ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- curl --fail --url $pkg --output $download_filename --location");
@@ -989,7 +979,7 @@ sub add_chroot {
         chomp($command_output);
         $mount_point = $command_output;
     }
-    
+
     # bind mount virtual file systems that may be needed
     logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
     foreach my $fs (@virtual_fs) {
@@ -1005,7 +995,7 @@ sub add_chroot {
             command_logger('verbose', $command, $rc, $command_output);
         }
     }
-    
+
     if (-e $mount_point . "/etc/resolv.conf") {
         logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
         my $command_output_log = "";
@@ -1024,7 +1014,7 @@ sub add_chroot {
         logger('info', "succeeded\n", 1);
         logger('verbose', $command_output_log);
     }
-    
+
     logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
     ($command, $command_output, $rc) = run_command("/bin/cp --verbose /etc/resolv.conf " . $mount_point . "/etc/resolv.conf");
     if ($rc != 0) {
@@ -1150,7 +1140,7 @@ sub update_container_pkgs {
             logger('info', "succeeded\n", 1);
             command_logger('verbose', $command, $rc, $command_output);
         }
-    
+
         logger('info', "Cleaning up after the update...\n");
         ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $clean_cmd");
         if ($rc != 0) {
@@ -1924,35 +1914,29 @@ update_container_pkgs($tmp_container);
             install_distro_manual($req, $tmp_container);
         } elsif ($req->{'type'} eq 'distro') {
             install_distro($req, $tmp_container);
-        } elsif ($req->{'type'} eq 'manual') {
-            install_manual($req, $tmp_container);
-        } elsif ($req->{'type'} eq 'cpan') {
-            install_cpan($req, $tmp_container);
-        } elsif ($req->{'type'} eq 'node') {
-            install_node($req, $tmp_container);
-        } elsif ($req->{'type'} eq 'source' or $req->{'type'} eq 'python3') {
+        } else {
             logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
             my $container_mount_point = add_chroot($tmp_container);
 
             # The following requirement types require a chroot in order
             # to issue multiple commands and preserve state (like PWD) and to
             # capture error codes from individual commands.
-            
+
             # Capture the current path/pwd and a reference to '/'
-	    my $pwd;
+            my $pwd;
             if (opendir(NORMAL_ROOT, "/")) {
                 ($command, $pwd, $rc) = run_command("pwd");
                 chomp($pwd);
             } else {
-            	logger('info', "failed\n", 2);
+                logger('info', "failed\n", 2);
                 logger('error', "Could not get directory reference to '/'!\n");
                 exit(get_exit_code('directory_reference'));
             }
-            
+
             # Jump into the container image
             if (not chroot($container_mount_point)) {
                 logger('info', "failed\n", 2);
-		logger('error', "Could not chroot to " . $container_mount_point . "!\n");
+                logger('error', "Could not chroot to " . $container_mount_point . "!\n");
                 exit(get_exit_code('chroot_failed'));
             }
 
@@ -1967,6 +1951,12 @@ update_container_pkgs($tmp_container);
                 install_source($req);
             } elsif ($req->{'type'} eq 'python3') {
                 install_python($req);
+            } elsif ($req->{'type'} eq 'node') {
+                install_node($req);
+            } elsif ($req->{'type'} eq 'manual') {
+                install_manual($req);
+            } elsif ($req->{'type'} eq 'cpan') {
+                install_cpan($req);
             }
 
             # Break out of the chroot and return to the old path/pwd
