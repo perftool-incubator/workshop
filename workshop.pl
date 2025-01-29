@@ -64,6 +64,23 @@ my $command_logger_fmt = "######################################################
     "COMMAND OUTPUT:\n\n%s\n" .
     "********************************************************************************\n";
 
+my $command;
+my $command_output;
+my $dirname;
+my $schema_location;
+my $registries_schema_location;
+my $userenv_json;
+my $rc;
+my $distro_installs;
+my $req_counter;
+my $update_cmd = "";
+my $clean_cmd = "";
+my $getsrc_cmd;
+my $volume_opt = "";
+if (-e "/run/secrets" ) {
+    $volume_opt = "--volume /run/secrets:/run/secrets"
+}
+
 sub quit_files_coro {
     my ($present, $channel) = @_;
 
@@ -529,6 +546,618 @@ sub delete_proto {
     return $image;
 }
 
+sub install_manual {
+    my $req = shift;
+    logger('info', "installing package via manually provided commands...\n", 2);
+
+    my $install_cmd_log = "";
+    my $command, my $command_output, my $rc;
+    foreach my $cmd (@{$req->{'manual_info'}{'commands'}}) {
+        logger('info', "executing '$cmd'...\n", 3);
+        ($command, $command_output, $rc) = run_command($cmd);
+        $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        if ($rc != 0){
+            logger('info', "failed [rc=$rc]\n", 4);
+            logger('error', $install_cmd_log);
+            logger('error', "Failed to run command '$cmd'\n");
+            #quit_files_coro($files_requirements_present, $files_channel);
+            exit(get_exit_code('command_run_failed'));
+        }
+    }
+    logger('info', "succeeded\n", 2);
+    logger('verbose', $install_cmd_log);
+}
+
+sub install_cpan {
+    my $req = shift;
+    logger('info', "installing package via cpan...\n", 2);
+
+    my $cpan_install_log = "";
+    my $command, my $command_output, my $rc;
+    foreach my $cpan_package (@{$req->{'cpan_info'}{'packages'}}) {
+        logger('info', "cpan installing '$cpan_package'...\n", 3);
+        ($command, $command_output, $rc) = run_command("cpanm $cpan_package");
+        $cpan_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        if ($rc != 0){
+            logger('info', "failed [rc=$rc]\n", 4);
+            logger('error', $cpan_install_log);
+            logger('error', "Failed to cpan install perl package '$cpan_package'\n");
+            #quit_files_coro($files_requirements_present, $files_channel);
+            exit(get_exit_code('cpanm_install_failed'));
+        }
+    }
+    logger('info', "succeeded\n", 4);
+    logger('verbose', $cpan_install_log);
+}
+
+sub install_node {
+    my $req = shift;
+    logger('info', "installing package via npm install...\n", 2);
+
+    my $npm_install_log = "";
+    my $command, my $command_output, my $rc;
+    foreach my $node_package (@{$req->{'node_info'}{'packages'}}) {
+        logger('info', "npm installing '$node_package'...\n", 3);
+        ($command, $command_output, $rc) = run_command("npm install $node_package");
+        $npm_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        if ($rc != 0){
+            logger('info', "failed [rc=$rc]\n", 4);
+            logger('error', $npm_install_log);
+            logger('error', "Failed to npm install node package '$node_package'\n");
+            #quit_files_coro($files_requirements_present, $files_channel);
+            exit(get_exit_code('npm_install_failed'));
+        }
+    }
+    logger('info', "succeeded\n", 4);
+    logger('verbose', $npm_install_log);
+}
+
+sub install_python {
+    my $req = shift;
+    logger('info', "installing package via python3 pip...\n", 2);
+    my $python3_install_log = "";
+    my $command, my $command_output, my $rc;
+    foreach my $python3_package (@{$req->{'python3_info'}{'packages'}}) {
+        logger('info', "python3 pip installing '$python3_package'...\n", 3);
+        ($command, $command_output, $rc) = run_command("/usr/bin/python3 -m pip install $python3_package");
+        $python3_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        if ($rc != 0){
+            logger('info', "failed [rc=$rc]\n", 4);
+            logger('error', $python3_install_log);
+            logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
+            exit(get_exit_code('python3_install_failed'));
+        } else {
+            logger('info', $python3_install_log);
+        }
+    }
+    logger('info', "succeeded\n", 4);
+    logger('verbose', $python3_install_log);
+}
+
+sub install_source {
+    my $req = shift;
+    my $build_cmd_log = "";
+    logger('info', "downloading...\n", 3);
+    my $max_download_attempts = 3;
+    my $download_attempts = 1;
+    my $rc = 1;
+    my $command;
+    my $command_output;
+    while (($download_attempts <= $max_download_attempts) &&
+        ($rc != 0)) {
+        ($command, $command_output, $rc) = run_command("curl --fail --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
+        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        $download_attempts++;
+        if ($rc != 0) {
+            sleep 1;
+        }
+    }
+    if ($rc == 0) {
+        logger('info', "getting directory...\n", 3);
+        ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
+        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        $command_output = filter_output($command_output);
+        my $get_dir = $command_output;
+        chomp($get_dir);
+        if ($rc == 0) {
+            logger('info', "unpacking...\n", 3);
+            ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'unpack'}");
+            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+            if ($rc == 0) {
+                if (chdir($get_dir)) {
+                    logger('info', "building...\n", 3);
+                    foreach my $build_cmd (@{$req->{'source_info'}{'commands'}{'commands'}}) {
+                        logger('info', "executing '$build_cmd'...\n", 4);
+                        ($command, $command_output, $rc) = run_command("$build_cmd");
+                        $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                        if ($rc != 0) {
+                            logger('info', "failed\n", 5);
+                            logger('error', $build_cmd_log);
+                            logger('error', "Build failed on command '$build_cmd'!\n");
+                #quit_files_coro($files_requirements_present, $files_channel);
+                            exit(get_exit_code('build_failed'));
+                        }
+                    }
+                    logger('info', "succeeded\n", 3);
+                    logger('verbose', $build_cmd_log);
+                } else {
+                    logger('info', "failed\n", 3);
+                    logger('error', $build_cmd_log);
+                    logger('error', "Could not chdir to '$get_dir'!\n");
+            #quit_files_coro($files_requirements_present, $files_channel);
+                    exit(get_exit_code('chdir_failed'));
+                }
+            } else {
+                logger('info', "failed\n", 3);
+                logger('error', $build_cmd_log);
+                logger('error', "Could not unpack source package!\n");
+        #quit_files_coro($files_requirements_present, $files_channel);
+                    exit(get_exit_code('unpack_failed'));
+            }
+        } else {
+            logger('info', "failed\n", 3);
+            logger('error', $build_cmd_log);
+            logger('error', "Could not get unpack directory!\n");
+        #quit_files_coro($files_requirements_present, $files_channel);
+            exit(get_exit_code('unpack_dir_not_found'));
+        }
+    } else {
+        logger('info', "failed\n", 3);
+        logger('error', $build_cmd_log);
+        logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
+    #quit_files_coro($files_requirements_present, $files_channel);
+        exit(get_exit_code('download_failed'));
+    }
+}
+
+sub install_files {
+    my $req = shift;
+    my $container = shift;
+    foreach my $file (@{$req->{'files_info'}{'files'}}) {
+        $file->{'src'} = param_replacement($file->{'src'}, 2);
+        if (exists($file->{'dst'})) {
+            $file->{'dst'} = param_replacement($file->{'dst'}, 2);
+        }
+        logger('info', "copying '$file->{'src'}'...\n", 2);
+
+        my $command, my $command_output, my $rc;
+        if (exists($file->{'dst'})) {
+            ($command, $command_output, $rc) = run_command("buildah add $container $file->{'src'} $file->{'dst'}");
+            if ($rc != 0) {
+                logger('info', "failed\n", 3);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
+                #$return_channel->put(get_exit_code('local-copy_failed'));
+            } else {
+                logger('info', "succeeded\n", 3);
+                command_logger('verbose', $command, $rc, $command_output);
+            }
+        } else {
+            logger('info', "failed\n", 3);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Destination '$file->{'dst'}' not defined!\n");
+        }
+    }
+}
+
+sub install_distro_manual {
+    my $req = shift;
+    my $container = shift;
+    logger('info', "performing manual distro package installation...\n", 2);
+
+    if (chdir('/root')) {
+        foreach my $pkg (@{$req->{'distro-manual_info'}{'packages'}}) {
+            my $install_cmd_log = "";
+            my $download_filename = "distro-manual-package";
+
+            logger('info', "package '$pkg'...\n", 3);
+
+            logger('info', "downloading...\n", 4);
+            my $max_download_attempts = 3;
+            my $download_attempts = 1;
+            my $rc = 1;
+            my $command;
+            my $command_output;
+            while (($download_attempts <= $max_download_attempts) &&
+                   ($rc != 0)) {
+                ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- curl --fail --url $pkg --output $download_filename --location");
+                $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                $download_attempts++;
+                if ($rc != 0) {
+                    sleep 1;
+                } else {
+                    my $operation_cmd;
+                    if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
+                        $operation_cmd = "rpm --install --verbose --test " . $download_filename;
+                    } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
+                        $operation_cmd = "";
+                    } else {
+                        logger('info', "failed validation\n", 5);
+                        logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
+                        exit(get_exit_code('unsupported_package_manager'));
+                    }
+
+                    if ($operation_cmd ne '') {
+                        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
+                        $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                        if ($rc != 0) {
+                            sleep 1;
+                        }
+                    }
+                }
+            }
+            if ($rc == 0) {
+                logger('info', "succeeded\n", 5);
+
+                logger('info', "installing...\n", 4);
+
+                my $operation_cmd = "";
+                if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
+                    $operation_cmd = "rpm --install --verbose " . $download_filename;
+                } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
+                    $operation_cmd = "dpkg --install " . $download_filename;
+                } else {
+                    logger('info', "failed\n", 5);
+                    logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
+                    exit(get_exit_code('unsupported_package_manager'));
+                }
+
+                ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
+                $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                if ($rc == 0) {
+                    logger('info', "succeeded\n", 5);
+
+                    logger('info', "cleaning up...\n", 4);
+                    ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- rm -v $download_filename");
+                    $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+                    if ($rc == 0) {
+                        logger('info', "succeeded\n", 5);
+                        logger('verbose', $install_cmd_log);
+                    } else {
+                        logger('info', "failed [rc=$rc]\n", 5);
+                        logger('error', $install_cmd_log);
+                        logger('error', "Failed to cleanup package '$pkg'\n");
+                        exit(get_exit_code("install_cleanup"));
+                    }
+                } else {
+                    logger('info', "failed [rc=$rc]\n", 5);
+                    logger('error', $install_cmd_log);
+                    logger('error', "Failed to install package '$pkg'\n");
+                    exit(get_exit_code("package_install"));
+                }
+            } else {
+                logger('info', "failed\n", 5);
+                logger('error', $install_cmd_log);
+                logger('error', "Could not download $pkg!\n");
+                exit(get_exit_code('download_failed'));
+            }
+        }
+    } else {
+        logger('info', "failed\n", 2);
+        logger('error', "Could not chdir to /root!\n");
+        exit(get_exit_code('chdir_failed'));
+    }
+}
+
+sub install_distro {
+    my $req = shift;
+    my $container = shift;
+
+    $distro_installs = 1;
+
+    # default to 'install' operation in case it is not specified in the requirement
+    my $operation = "install";
+    if (exists($req->{'distro_info'}{'operation'})) {
+        $operation = $req->{'distro_info'}{'operation'};
+    }
+
+    my $environment = "";
+    if (exists($req->{'distro_info'}{'environment'})) {
+        $environment = "env ";
+        foreach my $key (keys %{$req->{'distro_info'}{'environment'}}) {
+            $environment .= $key . "=" . $req->{'distro_info'}{'environment'}{$key} . " ";
+        }
+    }
+
+    logger('info', "performing distro package $operation...\n", 2);
+
+    if (exists($req->{'distro_info'}{'packages'})) {
+        foreach my $pkg (@{$req->{'distro_info'}{'packages'}}) {
+            logger('info', "package '$pkg'...\n", 3);
+
+            my $operation_cmd = "$environment";
+            if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "dnf install --allowerasing --assumeyes " . $pkg;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "dnf remove --assumeyes " . $pkg;
+                }
+            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "yum install --assumeyes " . $pkg;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "yum remove --assumeyes " . $pkg;
+                }
+            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "apt-get install -y " . $pkg;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "apt-get remove -y " . $pkg;
+                }
+            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "zypper install -y " . $pkg;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "zypper remove -y " . $pkg;
+                }
+            } else {
+                logger('info', "failed\n", 4);
+                logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
+                exit(get_exit_code('unsupported_package_manager'));
+            }
+
+            (my $command, my $command_output, my $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
+            if ($rc == 0) {
+                logger('info', "succeeded\n", 4);
+                command_logger('verbose', $command, $rc, $command_output);
+            } else {
+                logger('info', "failed [rc=$rc]\n", 4);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to $operation package '$pkg'\n");
+                exit(get_exit_code("package_" . $operation));
+            }
+        }
+    }
+
+    if (exists($req->{'distro_info'}{'groups'})) {
+        foreach my $grp (@{$req->{'distro_info'}{'groups'}}) {
+            logger('info', "group '$grp'...\n", 3);
+
+            my $operation_cmd = "$environment";
+            if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "dnf groupinstall --allowerasing --assumeyes " . $grp;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "dnf groupremove --assumeyes " . $grp;
+                }
+            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "yum groupinstall --assumeyes " . $grp;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "yum groupremove --assumeyes " . $grp;
+                }
+            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
+                if ($operation eq 'install') {
+                    # The equivalent of 'groupinstall' is just meta-packages for apt, so no special option needed
+                    $operation_cmd .= "apt-get install -y --assumeyes " . $grp;
+                } elsif ($operation eq 'remove') {
+                    # The equivalent of 'groupremove' is just meta-packages for apt, so no special option needed
+                    $operation_cmd .= "apt-get remove -y --assumeyes " . $grp;
+                }
+            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
+                if ($operation eq 'install') {
+                    $operation_cmd .= "zypper install -y -t pattern " . $grp;
+                } elsif ($operation eq 'remove') {
+                    $operation_cmd .= "zypper remove -y -t pattern " . $grp;
+                }
+            } else {
+                logger('info', "failed\n", 4);
+                logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
+                exit(get_exit_code('unsupported_package_manager'));
+            }
+
+            ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
+            if ($rc == 0) {
+                logger('info', "succeeded\n", 4);
+                command_logger('verbose', $command, $rc, $command_output);
+            } else {
+                logger('info', "failed [rc=$rc]\n", 4);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Failed to $operation group '$grp'\n");
+                exit(get_exit_code('group_' . $operation));
+            }
+        }
+    }
+}
+
+sub add_chroot {
+    my $container = shift;
+    my $mount_point;
+
+    # mount the container image
+    logger('info', "Mounting the temporary container's fileystem...\n");
+    (my $command, my $command_output, my $rc) = run_command("buildah mount $container");
+    if ($rc != 0) {
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to mount the temporary container's filesystem!\n");
+        exit(get_exit_code('container_mount'));
+    } else {
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
+        $command_output = filter_output($command_output);
+        chomp($command_output);
+        $mount_point = $command_output;
+    }
+
+    # bind mount virtual file systems that may be needed
+    logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
+    foreach my $fs (@virtual_fs) {
+        logger('info', "mounting '/$fs'...\n", 1);
+        ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $mount_point/$fs");
+        if ($rc != 0) {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
+            exit(get_exit_code('virtual_fs_mount'));
+        } else {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    }
+
+    if (-e $mount_point . "/etc/resolv.conf") {
+        logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
+        my $command_output_log = "";
+        ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $mount_point . "/etc/resolv.conf " . $mount_point . "/etc/resolv.conf.workshop");
+        $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        if ($rc == 0) {
+            ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $mount_point . "/etc/resolv.conf");
+            $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
+        }
+        if ($rc != 0) {
+            logger('info', "failed\n", 1);
+            logger('error', $command_output_log);
+            logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
+            exit(get_exit_code('resolve.conf_backup'));
+        }
+        logger('info', "succeeded\n", 1);
+        logger('verbose', $command_output_log);
+    }
+
+    logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
+    ($command, $command_output, $rc) = run_command("/bin/cp --verbose /etc/resolv.conf " . $mount_point . "/etc/resolv.conf");
+    if ($rc != 0) {
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to copy /etc/resolv.conf to the temporary container!\n");
+        exit(get_exit_code('resolv.conf_update'));
+    }
+    logger('info', "succeeded\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+
+    return $mount_point;
+}
+
+sub remove_chroot {
+    my $container = shift;
+    my $container_mount_point = shift;
+
+    # unmount virtual file systems that are bind mounted
+    logger('info', "Unmounting /dev, /proc/, and /sys from the temporary container's filesystem...\n");
+    my $umount_cmd_log = "";
+    foreach my $fs (@virtual_fs) {
+        logger('info', "unmounting '/$fs'...\n", 1);
+        (my $command, my $command_output, my $rc) = run_command("umount --verbose $container_mount_point/$fs");
+        if ($rc != 0) {
+            logger('info', "failed\n", 2);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
+            exit(get_exit_code('virtual_fs_umount'));
+        } else {
+            logger('info', "succeeded\n", 2);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    }
+
+    logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n");
+    ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
+    if ($rc != 0) {
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to remove /etc/resolv.conf from the temporary container!\n");
+        exit(get_exit_code('resolve.conf_remove'));
+    }
+    logger('info', "succeeded\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+
+    if (-e $container_mount_point . "/etc/resolv.conf.workshop") {
+        logger('info', "Restoring the backup of the temporary container's /etc/resolv.conf...\n");
+        ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf.workshop " . $container_mount_point . "/etc/resolv.conf");
+        if ($rc != 0) {
+            logger('info', "failed\n", 1);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Failed to restore the temporary container's /etc/resolv.conf!\n");
+            exit(get_exit_code('resolve.conf_restore'));
+        }
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
+    }
+
+    # unmount the container image
+    logger('info', "Unmounting the temporary container's filesystem...\n");
+    ($command, $command_output, $rc) = run_command("buildah unmount $container");
+    if ($rc != 0) {
+        logger('info', "failed\n", 1);
+        command_logger('error', $command, $rc, $command_output);
+        logger('error', "Failed to unmount the temporary container's filesystem [$container_mount_point]!\n");
+        exit(get_exit_code('container_umount'));
+    } else {
+        logger('info', "succeeded\n", 1);
+        command_logger('verbose', $command, $rc, $command_output);
+    }
+}
+
+sub set_update_clean_cmds {
+
+    if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
+        $update_cmd = "dnf update --assumeyes --allowerasing --nobest";
+        $clean_cmd = "dnf clean all";
+    } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "yum") {
+        $update_cmd = "yum update --assumeyes";
+        $clean_cmd = "yum clean all";
+    } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "apt") {
+        $getsrc_cmd = "apt-get update -y";
+        $update_cmd = "apt-get dist-upgrade -y";
+        $clean_cmd = "apt-get clean";
+    } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "zypper") {
+        $update_cmd = "zypper update -y";
+        $clean_cmd = "zypper clean";
+    } else {
+        logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
+        exit(get_exit_code('unsupported_package_manager'));
+    }
+}
+
+sub update_container_pkgs {
+    my $container = shift;
+
+    if ($args{'skip-update'} eq 'false') {
+        if (defined $getsrc_cmd) {
+            # get package-manager files list
+            logger('info', "Getting package-manager sources for the temporary container...\n");
+            ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $getsrc_cmd");
+            if ($rc != 0) {
+                logger('info', "failed\n", 1);
+                command_logger('error', $command, $rc, $command_output);
+                logger('error', "Updating the temporary container '$container' failed!\n");
+                exit(get_exit_code('update_failed'));
+            } else {
+                logger('info', "succeeded\n", 1);
+                command_logger('verbose', $command, $rc, $command_output);
+            }
+        }
+
+        # update the container's existing content
+        logger('info', "Updating the temporary container...\n");
+        (my $command, my $command_output, my $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $update_cmd");
+        if ($rc != 0) {
+            logger('info', "failed\n", 1);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Updating the temporary container '$container' failed!\n");
+            exit(get_exit_code('update_failed'));
+        } else {
+            logger('info', "succeeded\n", 1);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+
+        logger('info', "Cleaning up after the update...\n");
+        ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $clean_cmd");
+        if ($rc != 0) {
+            logger('info', "failed\n", 1);
+            command_logger('error', $command, $rc, $command_output);
+            logger('error', "Updating the temporary container '$container' failed because it could not clean up after itself!\n");
+            exit(get_exit_code('update_cleanup'));
+        } else {
+            logger('info', "succeeded\n", 1);
+            command_logger('verbose', $command, $rc, $command_output);
+        }
+    } else {
+        logger('info', "Skipping update due to --skip-update\n");
+    }
+}
+
+
 if (!GetOptions("completions=s" => \&arg_handler,
                 "config=s" => \&arg_handler,
                 "log-level=s" => \&arg_handler,
@@ -563,17 +1192,15 @@ if (! exists $args{'userenv'}) {
     exit(get_exit_code('no_userenv'));
 }
 
-my $command;
-my $command_output;
-my $dirname = dirname(__FILE__);
-my $schema_location = $dirname . "/schema.json";
-my $registries_schema_location = $dirname . "/registries-schema.json";
+$dirname = dirname(__FILE__);
+$schema_location = $dirname . "/schema.json";
+$registries_schema_location = $dirname . "/registries-schema.json";
 
 logger('info', "Using '$schema_location' for JSON input file schema validation\n");
 logger('info', "Loading userenv definition from '$args{'userenv'}'...\n");
 logger('info', "importing JSON...\n", 1);
 
-(my $rc, my $userenv_json) = get_json_file($args{'userenv'}, $schema_location);
+($rc, $userenv_json) = get_json_file($args{'userenv'}, $schema_location);
 if ($rc == 0 and defined $userenv_json) {
     logger('info', "succeeded\n", 2);
 } else {
@@ -1158,7 +1785,6 @@ logger('debug', "Checksum Array:\n");
 logger('debug', Dumper(\@checksums));
 
 my $tmp_container = $args{'host'} . "/" . $args{'proj'} . "/" . $args{'label'} . ":" . $args{'tag'};
-
 my $remove_image = 0;
 
 # cleanup an existing container image that we are going to replace, if it exists
@@ -1271,724 +1897,106 @@ if ($rc != 0) {
     command_logger('verbose', $command, $rc, $command_output);
 }
 
-my $getsrc_cmd;
-my $update_cmd = "";
-my $clean_cmd = "";
-if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
-    $update_cmd = "dnf update --assumeyes --allowerasing --nobest";
-    $clean_cmd = "dnf clean all";
-} elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "yum") {
-    $update_cmd = "yum update --assumeyes";
-    $clean_cmd = "yum clean all";
-} elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "apt") {
-    $getsrc_cmd = "apt-get update -y";
-    $update_cmd = "apt-get dist-upgrade -y";
-    $clean_cmd = "apt-get clean";
-} elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "zypper") {
-    $update_cmd = "zypper update -y";
-    $clean_cmd = "zypper clean";
-} else {
-    logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
-    exit(get_exit_code('unsupported_package_manager'));
-}
+set_update_clean_cmds();
+update_container_pkgs($tmp_container);
 
-if (defined $getsrc_cmd) {
-    # get package-manager files list
-    logger('info', "Getting package-manager sources for the temporary container...\n");
-    ($command, $command_output, $rc) = run_command("buildah run --isolation chroot $tmp_container -- $getsrc_cmd");
-    if ($rc != 0) {
-        logger('info', "failed\n", 1);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Updating the temporary container '$tmp_container' failed!\n");
-        exit(get_exit_code('update_failed'));
-    } else {
-        logger('info', "succeeded\n", 1);
-        command_logger('verbose', $command, $rc, $command_output);
-    }
-}
+    logger('info', "Installing Requirements\n");
 
-if ($args{'skip-update'} eq 'false') {
-    # update the container's existing content
-    logger('info', "Updating the temporary container...\n");
-    ($command, $command_output, $rc) = run_command("buildah run --isolation chroot $tmp_container -- $update_cmd");
-    if ($rc != 0) {
-        logger('info', "failed\n", 1);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Updating the temporary container '$tmp_container' failed!\n");
-        exit(get_exit_code('update_failed'));
-    } else {
-        logger('info', "succeeded\n", 1);
-        command_logger('verbose', $command, $rc, $command_output);
-    }
+    $distro_installs = 0;
+    $req_counter = 0;
+    foreach my $req (@{$active_requirements{'array'}}) {
+        $req_counter += 1;
+        logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
 
-    logger('info', "Cleaning up after the update...\n");
-    ($command, $command_output, $rc) = run_command("buildah run --isolation chroot $tmp_container -- $clean_cmd");
-    if ($rc != 0) {
-        logger('info', "failed\n", 1);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Updating the temporary container '$tmp_container' failed because it could not clean up after itself!\n");
-        exit(get_exit_code('update_cleanup'));
-    } else {
-        logger('info', "succeeded\n", 1);
-        command_logger('verbose', $command, $rc, $command_output);
-    }
-} else {
-    logger('info', "Skipping update due to --skip-update\n");
-}
+        if ($req->{'type'} eq 'files') {
+            install_files($req, $tmp_container);
+        } elsif ($req->{'type'} eq 'distro-manual') {
+            install_distro_manual($req, $tmp_container);
+        } elsif ($req->{'type'} eq 'distro') {
+            install_distro($req, $tmp_container);
+        } else {
+            logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
+            my $container_mount_point = add_chroot($tmp_container);
 
-# mount the container image
-logger('info', "Mounting the temporary container's fileystem...\n");
-($command, $command_output, $rc) = run_command("buildah mount $tmp_container");
-if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Failed to mount the temporary container's filesystem!\n");
-    exit(get_exit_code('container_mount'));
-} else {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
-    $command_output = filter_output($command_output);
-    chomp($command_output);
-    $container_mount_point = $command_output;
-}
+            # The following requirement types require a chroot in order
+            # to issue multiple commands and preserve state (like PWD) and to
+            # capture error codes from individual commands.
 
-# bind mount virtual file systems that may be needed
-logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
-foreach my $fs (@virtual_fs) {
-    logger('info', "mounting '/$fs'...\n", 1);
-    ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $container_mount_point/$fs");
-    if ($rc != 0) {
-        logger('info', "failed\n", 2);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
-        exit(get_exit_code('virtual_fs_mount'));
-    } else {
-        logger('info', "succeeded\n", 2);
-        command_logger('verbose', $command, $rc, $command_output);
-    }
-}
-
-if (-e $container_mount_point . "/etc/resolv.conf") {
-    logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
-    my $command_output_log = "";
-    ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf.workshop");
-    $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-    if ($rc == 0) {
-        ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
-        $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-    }
-    if ($rc != 0) {
-        logger('info', "failed\n", 1);
-        logger('error', $command_output_log);
-        logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
-        exit(get_exit_code('resolve.conf_backup'));
-    }
-    logger('info', "succeeded\n", 1);
-    logger('verbose', $command_output_log);
-}
-
-logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
-($command, $command_output, $rc) = run_command("/bin/cp --verbose /etc/resolv.conf " . $container_mount_point . "/etc/resolv.conf");
-if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Failed to copy /etc/resolv.conf to the temporary container!\n");
-    exit(get_exit_code('resolv.conf_update'));
-}
-logger('info', "succeeded\n", 1);
-command_logger('verbose', $command, $rc, $command_output);
-
-# what follows is a complicated mess of code to chroot into the
-# temporary container's filesystem.  Once there all kinds of stuff can
-# be done to install packages and make other tweaks to the container
-# if necessary.
-
-# capture the current path/pwd and a reference to '/'
-if (opendir(NORMAL_ROOT, "/")) {
-    my $pwd;
-    ($command, $pwd, $rc) = run_command("pwd");
-    chomp($pwd);
-
-    my $files_channel;
-    my $return_channel;
-    my $coro;
-    if ($files_requirements_present) {
-        $files_channel = new Coro::Channel(1);
-        $return_channel = new Coro::Channel(1);
-
-        $coro = new Coro sub {
-            my $dir_handle;
-            my $cur_pwd;
-
-            Coro::on_enter {
-                logger('verbose', "Performing async/coro enter\n");
-
-                ($command, $cur_pwd, $rc) = run_command("pwd");
-                chomp($cur_pwd);
-
-                if (!chdir(*NORMAL_ROOT)) {
-                    logger('error', "Failed to chdir to root during async/coro enter!\n");
-                    $return_channel->put(get_exit_code('coro_failure'));
-                }
-                if (!chroot(".")) {
-                    logger('error', "Failed to chroot to '.' during async/coro enter!\n");
-                    $return_channel->put(get_exit_code('coro_failure'));
-                }
-                if (!chdir($pwd)) {
-                    logger('error', "Failed to chdir to previous working directory '$pwd' during async/coro enter!\n");
-                    $return_channel->put(get_exit_code('coro_failure'));
-                }
-            };
-
-            Coro::on_leave {
-                logger('verbose', "Performing async/coro leave\n");
-
-                if (!chroot($container_mount_point)) {
-                    logger('error', "Failed to chroot back to the container mount point during async/coro exit!\n");
-                    $return_channel->put(get_exit_code('coro_failure'));
-                }
-                if (!chdir($cur_pwd)) {
-                    logger('error', "Failed to chdir to previous working directory '$cur_pwd' during async/coro exit!\n");
-                    $return_channel->put(get_exit_code('coro_failure'));
-                }
-            };
-
-            my $msg = '';
-
-            while($msg ne 'quit') {
-                $msg = $files_channel->get;
-
-                if ($msg ne 'quit') {
-                    my $req = $active_requirements{'array'}[$msg];
-                    my $command;
-                    my $command_output;
-                    my $rc;
-
-                    foreach my $file (@{$req->{'files_info'}{'files'}}) {
-                        $file->{'src'} = param_replacement($file->{'src'}, 2);
-                        if (exists($file->{'dst'})) {
-                            $file->{'dst'} = param_replacement($file->{'dst'}, 2);
-                        }
-                        logger('info', "copying '$file->{'src'}'...\n", 2);
-
-                        if (exists($file->{'dst'})) {
-                            ($command, $command_output, $rc) = run_command("buildah add $tmp_container $file->{'src'} $file->{'dst'}");
-                            if ($rc != 0) {
-                                logger('info', "failed\n", 3);
-                                command_logger('error', $command, $rc, $command_output);
-                                logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
-                                $return_channel->put(get_exit_code('local-copy_failed'));
-                            } else {
-                                logger('info', "succeeded\n", 3);
-                                command_logger('verbose', $command, $rc, $command_output);
-                            }
-                        } else {
-                            logger('info', "failed\n", 3);
-                            command_logger('error', $command, $rc, $command_output);
-                            logger('error', "Destination '$file->{'dst'}' not defined!\n");
-                            $return_channel->put(get_exit_code('copy_dst_missing'));
-                        }
-                    }
-                }
-                $return_channel->put('go');
-            }
-        };
-        $coro->ready();
-    }
-
-    # jump into the container image
-    if (chroot($container_mount_point)) {
-        if (chdir("/root")) {
-            logger('info', "Installing Requirements\n");
-
-            my $distro_installs = 0;
-            my $req_counter = 0;
-            foreach my $req (@{$active_requirements{'array'}}) {
-                $req_counter += 1;
-                logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
-
-                if ($req->{'type'} eq 'files') {
-                    $files_channel->put($req->{'index'});
-                    my $msg = $return_channel->get;
-                    if ($msg ne 'go') {
-                        exit($msg);
-                    }
-                } elsif ($req->{'type'} eq 'distro-manual') {
-                    logger('info', "performing manual distro package installation...\n", 2);
-
-                    if (chdir('/root')) {
-                        foreach my $pkg (@{$req->{'distro-manual_info'}{'packages'}}) {
-                            my $install_cmd_log = "";
-                            my $download_filename = "distro-manual-package";
-
-                            logger('info', "package '$pkg'...\n", 3);
-
-                            logger('info', "downloading...\n", 4);
-                            my $max_download_attempts = 3;
-                            my $download_attempts = 1;
-                            $rc = 1;
-                            while (($download_attempts <= $max_download_attempts) &&
-                                   ($rc != 0)) {
-                                ($command, $command_output, $rc) = run_command("curl --fail --url $pkg --output $download_filename --location");
-                                $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                $download_attempts++;
-                                if ($rc != 0) {
-                                    sleep 1;
-                                } else {
-                                    my $operation_cmd;
-                                    if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
-                                        $operation_cmd = "rpm --install --verbose --test " . $download_filename;
-                                    } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
-                                        $operation_cmd = "";
-                                    } else {
-                                        logger('info', "failed validation\n", 5);
-                                        logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
-                                        quit_files_coro($files_requirements_present, $files_channel);
-                                        exit(get_exit_code('unsupported_package_manager'));
-                                    }
-
-                                    if ($operation_cmd ne '') {
-                                        ($command, $command_output, $rc) = run_command("$operation_cmd");
-                                        $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                        if ($rc != 0) {
-                                            sleep 1;
-                                        }
-                                    }
-                                }
-                            }
-                            if ($rc == 0) {
-                                logger('info', "succeeded\n", 5);
-
-                                logger('info', "installing...\n", 4);
-
-                                my $operation_cmd = "";
-                                if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
-                                    $operation_cmd = "rpm --install --verbose " . $download_filename;
-                                } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
-                                    $operation_cmd = "dpkg --install " . $download_filename;
-                                } else {
-                                    logger('info', "failed\n", 5);
-                                    logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
-                                    quit_files_coro($files_requirements_present, $files_channel);
-                                    exit(get_exit_code('unsupported_package_manager'));
-                                }
-
-                                ($command, $command_output, $rc) = run_command("$operation_cmd");
-                                $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                if ($rc == 0) {
-                                    logger('info', "succeeded\n", 5);
-
-                                    logger('info', "cleaning up...\n", 4);
-                                    ($command, $command_output, $rc) = run_command("rm -v $download_filename");
-                                    $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                    if ($rc == 0) {
-                                        logger('info', "succeeded\n", 5);
-                                        logger('verbose', $install_cmd_log);
-                                    } else {
-                                        logger('info', "failed [rc=$rc]\n", 5);
-                                        logger('error', $install_cmd_log);
-                                        logger('error', "Failed to cleanup package '$pkg'\n");
-                                        quit_files_coro($files_requirements_present, $files_channel);
-                                        exit(get_exit_code("install_cleanup"));
-                                    }
-                                } else {
-                                    logger('info', "failed [rc=$rc]\n", 5);
-                                    logger('error', $install_cmd_log);
-                                    logger('error', "Failed to install package '$pkg'\n");
-                                    quit_files_coro($files_requirements_present, $files_channel);
-                                    exit(get_exit_code("package_install"));
-                                }
-                            } else {
-                                logger('info', "failed\n", 5);
-                                logger('error', $install_cmd_log);
-                                logger('error', "Could not download $pkg!\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('download_failed'));
-                            }
-                        }
-                    } else {
-                        logger('info', "failed\n", 2);
-                        logger('error', "Could not chdir to /root!\n");
-                        quit_files_coro($files_requirements_present, $files_channel);
-                        exit(get_exit_code('chdir_failed'));
-                    }
-                } elsif ($req->{'type'} eq 'distro') {
-                    $distro_installs = 1;
-
-                    # default to 'install' operation in case it is not specified in the requirement
-                    my $operation = "install";
-                    if (exists($req->{'distro_info'}{'operation'})) {
-                        $operation = $req->{'distro_info'}{'operation'};
-                    }
-
-                    my $environment = "";
-                    if (exists($req->{'distro_info'}{'environment'})) {
-                        $environment = "env ";
-                        foreach my $key (keys %{$req->{'distro_info'}{'environment'}}) {
-                            $environment .= $key . "=" . $req->{'distro_info'}{'environment'}{$key} . " ";
-                        }
-                    }
-
-                    logger('info', "performing distro package $operation...\n", 2);
-
-                    if (exists($req->{'distro_info'}{'packages'})) {
-                        foreach my $pkg (@{$req->{'distro_info'}{'packages'}}) {
-                            logger('info', "package '$pkg'...\n", 3);
-
-                            my $operation_cmd = "$environment";
-                            if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "dnf install --allowerasing --assumeyes " . $pkg;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "dnf remove --assumeyes " . $pkg;
-                                }
-                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "yum install --assumeyes " . $pkg;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "yum remove --assumeyes " . $pkg;
-                                }
-                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "apt-get install -y " . $pkg;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "apt-get remove -y " . $pkg;
-                                }
-                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "zypper install -y " . $pkg;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "zypper remove -y " . $pkg;
-                                }
-                            } else {
-                                logger('info', "failed\n", 4);
-                                logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('unsupported_package_manager'));
-                            }
-
-                            ($command, $command_output, $rc) = run_command("$operation_cmd");
-                            if ($rc == 0) {
-                                logger('info', "succeeded\n", 4);
-                                command_logger('verbose', $command, $rc, $command_output);
-                            } else {
-                                logger('info', "failed [rc=$rc]\n", 4);
-                                command_logger('error', $command, $rc, $command_output);
-                                logger('error', "Failed to $operation package '$pkg'\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code("package_" . $operation));
-                            }
-                        }
-                    }
-
-                    if (exists($req->{'distro_info'}{'groups'})) {
-                        foreach my $grp (@{$req->{'distro_info'}{'groups'}}) {
-                            logger('info', "group '$grp'...\n", 3);
-
-                            my $operation_cmd = "$environment";
-                            if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "dnf groupinstall --allowerasing --assumeyes " . $grp;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "dnf groupremove --assumeyes " . $grp;
-                                }
-                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'yum') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "yum groupinstall --assumeyes " . $grp;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "yum groupremove --assumeyes " . $grp;
-                                }
-                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'apt') {
-                                if ($operation eq 'install') {
-                                    # The equivalent of 'groupinstall' is just meta-packages for apt, so no special option needed
-                                    $operation_cmd .= "apt-get install -y --assumeyes " . $grp;
-                                } elsif ($operation eq 'remove') {
-                                    # The equivalent of 'groupremove' is just meta-packages for apt, so no special option needed
-                                    $operation_cmd .= "apt-get remove -y --assumeyes " . $grp;
-                                }
-                            } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'zypper') {
-                                if ($operation eq 'install') {
-                                    $operation_cmd .= "zypper install -y -t pattern " . $grp;
-                                } elsif ($operation eq 'remove') {
-                                    $operation_cmd .= "zypper remove -y -t pattern " . $grp;
-                                }
-                            } else {
-                                logger('info', "failed\n", 4);
-                                logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('unsupported_package_manager'));
-                            }
-
-                            ($command, $command_output, $rc) = run_command("$operation_cmd");
-                            if ($rc == 0) {
-                                logger('info', "succeeded\n", 4);
-                                command_logger('verbose', $command, $rc, $command_output);
-                            } else {
-                                logger('info', "failed [rc=$rc]\n", 4);
-                                command_logger('error', $command, $rc, $command_output);
-                                logger('error', "Failed to $operation group '$grp'\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('group_' . $operation));
-                            }
-                        }
-                    }
-                } elsif ($req->{'type'} eq 'source') {
-                    logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
-
-                    if (chdir('/root')) {
-                        my $build_cmd_log = "";
-                        logger('info', "downloading...\n", 3);
-                        my $max_download_attempts = 3;
-                        my $download_attempts = 1;
-                        $rc = 1;
-                        while (($download_attempts <= $max_download_attempts) &&
-                               ($rc != 0)) {
-                            ($command, $command_output, $rc) = run_command("curl --fail --url $req->{'source_info'}{'url'} --output $req->{'source_info'}{'filename'} --location");
-                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                            $download_attempts++;
-                            if ($rc != 0) {
-                                sleep 1;
-                            }
-                        }
-                        if ($rc == 0) {
-                            logger('info', "getting directory...\n", 3);
-                            ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
-                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                            $command_output = filter_output($command_output);
-                            my $get_dir = $command_output;
-                            chomp($get_dir);
-                            if ($rc == 0) {
-                                logger('info', "unpacking...\n", 3);
-                                ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'unpack'}");
-                                $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                if ($rc == 0) {
-                                    if (chdir($get_dir)) {
-                                        logger('info', "building...\n", 3);
-                                        foreach my $build_cmd (@{$req->{'source_info'}{'commands'}{'commands'}}) {
-                                            logger('info', "executing '$build_cmd'...\n", 4);
-                                            ($command, $command_output, $rc) = run_command("$build_cmd");
-                                            $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                                            if ($rc != 0) {
-                                                logger('info', "failed\n", 5);
-                                                logger('error', $build_cmd_log);
-                                                logger('error', "Build failed on command '$build_cmd'!\n");
-                                                quit_files_coro($files_requirements_present, $files_channel);
-                                                exit(get_exit_code('build_failed'));
-                                            }
-                                        }
-                                        logger('info', "succeeded\n", 3);
-                                        logger('verbose', $build_cmd_log);
-                                    } else {
-                                        logger('info', "failed\n", 3);
-                                        logger('error', $build_cmd_log);
-                                        logger('error', "Could not chdir to '$get_dir'!\n");
-                                        quit_files_coro($files_requirements_present, $files_channel);
-                                        exit(get_exit_code('chdir_failed'));
-                                    }
-                                } else {
-                                    logger('info', "failed\n", 3);
-                                    logger('error', $build_cmd_log);
-                                    logger('error', "Could not unpack source package!\n");
-                                    quit_files_coro($files_requirements_present, $files_channel);
-                                    exit(get_exit_code('unpack_failed'));
-                                }
-                            } else {
-                                logger('info', "failed\n", 3);
-                                logger('error', $build_cmd_log);
-                                logger('error', "Could not get unpack directory!\n");
-                                quit_files_coro($files_requirements_present, $files_channel);
-                                exit(get_exit_code('unpack_dir_not_found'));
-                            }
-                        } else {
-                            logger('info', "failed\n", 3);
-                            logger('error', $build_cmd_log);
-                            logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
-                            quit_files_coro($files_requirements_present, $files_channel);
-                            exit(get_exit_code('download_failed'));
-                        }
-                    } else {
-                        logger('info', "failed\n", 2);
-                        logger('error', "Could not chdir to /root!\n");
-                        quit_files_coro($files_requirements_present, $files_channel);
-                        exit(get_exit_code('chdir_failed'));
-                    }
-                } elsif ($req->{'type'} eq 'manual') {
-                    logger('info', "installing package via manually provided commands...\n", 2);
-
-                    my $install_cmd_log = "";
-                    foreach my $cmd (@{$req->{'manual_info'}{'commands'}}) {
-                        logger('info', "executing '$cmd'...\n", 3);
-                        ($command, $command_output, $rc) = run_command("$cmd");
-                        $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                        if ($rc != 0){
-                            logger('info', "failed [rc=$rc]\n", 4);
-                            logger('error', $install_cmd_log);
-                            logger('error', "Failed to run command '$cmd'\n");
-                            quit_files_coro($files_requirements_present, $files_channel);
-                            exit(get_exit_code('command_run_failed'));
-                        }
-                    }
-                    logger('info', "succeeded\n", 2);
-                    logger('verbose', $install_cmd_log);
-                } elsif ($req->{'type'} eq 'cpan') {
-                    logger('info', "installing package via cpan...\n", 2);
-
-                    my $cpan_install_log = "";
-                    foreach my $cpan_package (@{$req->{'cpan_info'}{'packages'}}) {
-                        logger('info', "cpan installing '$cpan_package'...\n", 3);
-                        ($command, $command_output, $rc) = run_command("cpanm $cpan_package");
-                        $cpan_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                        if ($rc != 0){
-                            logger('info', "failed [rc=$rc]\n", 4);
-                            logger('error', $cpan_install_log);
-                            logger('error', "Failed to cpan install perl package '$cpan_package'\n");
-                            quit_files_coro($files_requirements_present, $files_channel);
-                            exit(get_exit_code('cpanm_install_failed'));
-                        }
-                    }
-                    logger('info', "succeeded\n", 4);
-                    logger('verbose', $cpan_install_log);
-                  } elsif ($req->{'type'} eq 'node') {
-                      logger('info', "installing package via npm install...\n", 2);
- 
-                      my $npm_install_log = "";
-                      foreach my $node_package (@{$req->{'node_info'}{'packages'}}) {
-                          logger('info', "npm installing '$node_package'...\n", 3);
-                          ($command, $command_output, $rc) = run_command("npm install $node_package");
-                          $npm_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                          if ($rc != 0){
-                              logger('info', "failed [rc=$rc]\n", 4);
-                              logger('error', $npm_install_log);
-                              logger('error', "Failed to npm install node package '$node_package'\n");
-                              quit_files_coro($files_requirements_present, $files_channel);
-                              exit(get_exit_code('npm_install_failed'));
-                          }
-                      }
-                      logger('info', "succeeded\n", 4);
-                      logger('verbose', $npm_install_log);
-                  } elsif ($req->{'type'} eq 'python3') {
-                      logger('info', "installing package via python3 pip...\n", 2);
-
-                      my $python3_install_log = "";
-                      foreach my $python3_package (@{$req->{'python3_info'}{'packages'}}) {
-                          logger('info', "python3 pip installing '$python3_package'...\n", 3);
-                          ($command, $command_output, $rc) = run_command("/usr/bin/python3 -m pip install $python3_package");
-                          $python3_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-                          if ($rc != 0){
-                              logger('info', "failed [rc=$rc]\n", 4);
-                              logger('error', $python3_install_log);
-                              logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
-                              quit_files_coro($files_requirements_present, $files_channel);
-                              exit(get_exit_code('python3_install_failed'));
-                          }
-                      }
-                      logger('info', "succeeded\n", 4);
-                      logger('verbose', $python3_install_log);
-                }
-            }
-
-            if ($distro_installs) {
-                logger('info', "Cleaning up after performing distro package installations...\n");
-                ($command, $command_output, $rc) = run_command("$clean_cmd");
-                if ($rc != 0) {
-                    logger('info', "failed\n", 1);
-                    command_logger('error', $command, $rc, $command_output);
-                    logger('error', "Cleaning up after distro package installation failed!\n");
-                    quit_files_coro($files_requirements_present, $files_channel);
-                    exit(get_exit_code('install_cleanup'));
-                } else {
-                    logger('info', "succeeded\n", 1);
-                    command_logger('verbose', $command, $rc, $command_output);
-                }
-            }
-
-            quit_files_coro($files_requirements_present, $files_channel);
-
-            # break out of the chroot and return to the old path/pwd
-            if (chdir(*NORMAL_ROOT)) {
-                if (chroot(".")) {
-                    if (!chdir($pwd)) {
-                        logger('error', "Could not chdir back to the original path/pwd!\n");
-                        exit(get_exit_code('chroot_escape_1'));
-                    }
-                } else {
-                    logger('error', "Could not chroot out of the chroot!\n");
-                    exit(get_exit_code('chroot_escape_2'));
-                }
+            # Capture the current path/pwd and a reference to '/'
+            my $pwd;
+            if (opendir(NORMAL_ROOT, "/")) {
+                ($command, $pwd, $rc) = run_command("pwd");
+                chomp($pwd);
             } else {
+                logger('info', "failed\n", 2);
+                logger('error', "Could not get directory reference to '/'!\n");
+                exit(get_exit_code('directory_reference'));
+            }
+
+            # Jump into the container image
+            if (not chroot($container_mount_point)) {
+                logger('info', "failed\n", 2);
+                logger('error', "Could not chroot to " . $container_mount_point . "!\n");
+                exit(get_exit_code('chroot_failed'));
+            }
+
+            if (not chdir("/root")) {
+                logger('info', "failed\n", 2);
+                logger('error', "Could not chdir to /root!\n");
+                exit(get_exit_code('chdir_failed'));
+            }
+
+            # Install the requirment that needs chroot
+            if ($req->{'type'} eq 'source') {
+                install_source($req);
+            } elsif ($req->{'type'} eq 'python3') {
+                install_python($req);
+            } elsif ($req->{'type'} eq 'node') {
+                install_node($req);
+            } elsif ($req->{'type'} eq 'manual') {
+                install_manual($req);
+            } elsif ($req->{'type'} eq 'cpan') {
+                install_cpan($req);
+            }
+
+            # Break out of the chroot and return to the old path/pwd
+            if (not chdir(*NORMAL_ROOT)) {
                 logger('error', "Could not chdir to escape the chroot!\n");
                 exit(get_exit_code('chroot_escape_3'));
             }
-        } else {
-            logger('error', "Could not chdir to temporary container mount point [$container_mount_point]!\n");
-            quit_files_coro($files_requirements_present, $files_channel);
-            exit(get_exit_code('chdir_failed'));
+
+            if (not chroot(".")) {
+                logger('error', "Could not chroot out of the chroot!\n");
+                exit(get_exit_code('chroot_escape_2'));
+            }
+
+            if (not chdir($pwd)) {
+                logger('error', "Could not chdir back to the original path/pwd!\n");
+                exit(get_exit_code('chroot_escape_1'));
+            }
+
+            closedir(NORMAL_ROOT);
+            remove_chroot($tmp_container, $container_mount_point);
         }
-    } else {
-        logger('error', "Could not chroot to temporary container mount point [$container_mount_point]!\n");
-        quit_files_coro($files_requirements_present, $files_channel);
-        exit(get_exit_code('chroot_failed'));
-    }
+    } # foreach my $req
 
-    closedir(NORMAL_ROOT);
-} else {
-    logger('error', "Could not get directory reference to '/'!\n");
-    exit(get_exit_code('directory_reference'));
-}
-
-# unmount virtual file systems that are bind mounted
-logger('info', "Unmounting /dev, /proc/, and /sys from the temporary container's filesystem...\n");
-my $umount_cmd_log = "";
-foreach my $fs (@virtual_fs) {
-    logger('info', "unmounting '/$fs'...\n", 1);
-    ($command, $command_output, $rc) = run_command("umount --verbose $container_mount_point/$fs");
+if ($distro_installs) {
+    logger('info', "Cleaning up after performing distro package installations...\n");
+    ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $tmp_container -- $clean_cmd");
     if ($rc != 0) {
-        logger('info', "failed\n", 2);
+        logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
-        exit(get_exit_code('virtual_fs_umount'));
+        logger('error', "Cleaning up after distro package installation failed!\n");
+        #quit_files_coro($files_requirements_present, $files_channel);
+        exit(get_exit_code('install_cleanup'));
     } else {
-        logger('info', "succeeded\n", 2);
+        logger('info', "succeeded\n", 1);
         command_logger('verbose', $command, $rc, $command_output);
     }
 }
 
-logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n");
-($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
-if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Failed to remove /etc/resolv.conf from the temporary container!\n");
-    exit(get_exit_code('resolve.conf_remove'));
-}
-logger('info', "succeeded\n", 1);
-command_logger('verbose', $command, $rc, $command_output);
 
-if (-e $container_mount_point . "/etc/resolv.conf.workshop") {
-    logger('info', "Restoring the backup of the temporary container's /etc/resolv.conf...\n");
-    ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf.workshop " . $container_mount_point . "/etc/resolv.conf");
-    if ($rc != 0) {
-        logger('info', "failed\n", 1);
-        command_logger('error', $command, $rc, $command_output);
-        logger('error', "Failed to restore the temporary container's /etc/resolv.conf!\n");
-        exit(get_exit_code('resolve.conf_restore'));
-    }
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
-}
 
-# unmount the container image
-logger('info', "Unmounting the temporary container's filesystem...\n");
-($command, $command_output, $rc) = run_command("buildah unmount $tmp_container");
-if ($rc != 0) {
-    logger('info', "failed\n", 1);
-    command_logger('error', $command, $rc, $command_output);
-    logger('error', "Failed to unmount the temporary container's filesystem [$container_mount_point]!\n");
-    exit(get_exit_code('container_umount'));
-} else {
-    logger('info', "succeeded\n", 1);
-    command_logger('verbose', $command, $rc, $command_output);
-}
 
 # add version information to new container image
 logger('info', "Adding config version information to the temporary container...\n");
