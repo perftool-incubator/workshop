@@ -1940,9 +1940,13 @@ update_container_pkgs($tmp_container);
                 exit(get_exit_code('chroot_failed'));
             }
 
-            if (not chdir("/root")) {
+	    if (not -e "/opt") {
+                mkdir("/opt")
+            }
+
+            if (not chdir("/opt")) {
                 logger('info', "failed\n", 2);
-                logger('error', "Could not chdir to /root!\n");
+                logger('error', "Could not chdir to /opt!\n");
                 exit(get_exit_code('chdir_failed'));
             }
 
