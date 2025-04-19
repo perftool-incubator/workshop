@@ -32,6 +32,7 @@ BEGIN {
 }
 use lib "$ENV{'TOOLBOX_HOME'}/perl";
 use toolbox::json;
+use toolbox::logging;
 
 # disable output buffering
 $|++;
@@ -353,7 +354,7 @@ sub logger {
     }
 
     if ($log_msg eq "") {
-        print $prefix;
+        log_print $prefix;
         return;
     }
 
@@ -361,20 +362,20 @@ sub logger {
 
     my $line_idx = 0;
     for ($line_idx=0; $line_idx<(scalar(@lines) - 1); $line_idx++) {
-        print $prefix . $lines[$line_idx] . "\n";
+        log_print $prefix . $lines[$line_idx] . "\n";
     }
 
     if ($add_newline) {
         if (@lines == 0) {
-            print $prefix . "\n";
+            log_print $prefix . "\n";
         } else {
-            print $prefix . $lines[$line_idx] . "\n";
+            log_print $prefix . $lines[$line_idx] . "\n";
         }
     } else {
         if (@lines == 0) {
-            print $prefix;
+            log_print $prefix;
         } else {
-            print $prefix . $lines[$line_idx];
+            log_print $prefix . $lines[$line_idx];
         }
     }
 }
@@ -415,24 +416,24 @@ sub arg_handler {
 
         if ($opt_value eq 'all') {
             for (my $i=0; $i<scalar(@cli_args); $i++) {
-                print $cli_args[$i] . ' ';
+                log_print $cli_args[$i] . ' ';
             }
-            print "\n";
+            log_print "\n";
         } elsif ($opt_value eq '--log-level') {
             foreach my $key (sort (keys %log_levels)) {
-                print "$key ";
+                log_print "$key ";
             }
-            print "\n";
+            log_print "\n";
         } elsif ($opt_value eq '--skip-update') {
             foreach my $key (sort (keys %update_options)) {
-                print "$key ";
+                log_print "$key ";
             }
-            print "\n";
+            log_print "\n";
         } elsif ($opt_value eq '--force') {
             foreach my $key (sort (keys %force_options)) {
-                print "$key ";
+                log_print "$key ";
             }
-            print "\n";
+            log_print "\n";
         }
     } elsif ($opt_name eq "label") {
         $args{'label'} = $opt_value;
@@ -1709,7 +1710,7 @@ if ($args{'dump-files'} eq 'true') {
     foreach my $req (@{$active_requirements{'array'}}) {
         if ($req->{'type'} eq 'files') {
             foreach my $file (@{$req->{'files_info'}{'files'}}) {
-                printf "%s\n", param_replacement($file->{'src'}, 0);
+                log_print param_replacement($file->{'src'}, 0) . "\n";
             }
         }
     }
