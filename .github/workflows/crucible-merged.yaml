@@ -7,7 +7,7 @@ on:
     paths-ignore:
     - LICENSE
     - '**.md'
-    - './github/rulesets/**'
+    - '.github/rulesets/**'
     - .github/workflows/run-crucible-tracking.yaml
     - .github/workflows/faux-crucible-ci.yaml
     - .github/workflows/faux-workshop-ci.yaml
