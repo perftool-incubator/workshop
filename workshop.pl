@@ -1430,15 +1430,30 @@ foreach my $tmp_req (@all_requirements) {
     my %userenvs;
 
     for (my $i=0; $i<scalar(@{$tmp_req->{'json'}{'userenvs'}}); $i++) {
-        if (exists($userenvs{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}})) {
-            logger('info', "failed\n", 2);
-            logger('error', "Found duplicate userenv definition for '$tmp_req->{'json'}{'userenv'}[$i]{'name'}' in requirements '$tmp_req->{'filename'}'!\n");
-        } else {
-            $userenvs{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}} = 1;
-        }
+        if (ref($tmp_req->{'json'}{'userenvs'}[$i]{'name'}) eq 'ARRAY') {
+            for (my $x=0; $x<scalar(@{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}}); $x++) {
+                if (exists($userenvs{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}[$x]})) {
+                    logger('info', "failed\n", 2);
+                    logger('error', "Found duplicate userenv definition for '$tmp_req->{'json'}{'userenv'}[$i]{'name'}[$x]' in requirements '$tmp_req->{'filename'}'!\n");
+                } else {
+                    $userenvs{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}[$x]} = 1;
+                }
 
-        if ($tmp_req->{'json'}{'userenvs'}[$i]{'name'} eq $userenv_json->{'userenv'}{'name'}) {
-            $userenv_idx = $i;
+                if ($tmp_req->{'json'}{'userenvs'}[$i]{'name'}[$x] eq $userenv_json->{'userenv'}{'name'}) {
+                    $userenv_idx = $i;
+                }
+            }
+        } else {
+            if (exists($userenvs{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}})) {
+                logger('info', "failed\n", 2);
+                logger('error', "Found duplicate userenv definition for '$tmp_req->{'json'}{'userenv'}[$i]{'name'}' in requirements '$tmp_req->{'filename'}'!\n");
+            } else {
+                $userenvs{$tmp_req->{'json'}{'userenvs'}[$i]{'name'}} = 1;
+            }
+
+            if ($tmp_req->{'json'}{'userenvs'}[$i]{'name'} eq $userenv_json->{'userenv'}{'name'}) {
+                $userenv_idx = $i;
+            }
         }
 
         if ($tmp_req->{'json'}{'userenvs'}[$i]{'name'} eq 'default') {
