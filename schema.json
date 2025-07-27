@@ -75,7 +75,8 @@
 				"2022.07.25",
 				"2023.02.16",
 				"2024.03.22",
-				"2024.08.07"
+				"2024.08.07",
+				"2025.07.25"
 			    ]
 			}
 		    },
@@ -205,8 +206,21 @@
 		"type": "object",
 		"properties": {
 		    "name": {
-			"type": "string",
-			"minLength": 1
+			"oneOf": [
+			    {
+				"type": "string",
+				"minLength": 1
+			    },
+			    {
+				"type": "array",
+				"minItems": 1,
+				"uniqueItems": true,
+				"items": {
+				    "type": "string",
+				    "minLength": 1
+				}
+			    }
+			]
 		    },
 		    "requirements": {
 			"type": "array",
