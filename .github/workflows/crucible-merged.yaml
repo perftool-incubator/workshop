@@ -4,14 +4,11 @@ on:
   pull_request_target:
     types: [ closed ]
     branches: [ master ]
-    paths-ignore:
-    - LICENSE
-    - '**.md'
-    - '.github/rulesets/**'
-    - .github/workflows/run-crucible-tracking.yaml
-    - .github/workflows/faux-crucible-ci.yaml
-    - .github/workflows/faux-workshop-ci.yaml
-    - 'docs/**'
+    paths:
+    - .github/workflows/crucible-merged.yaml
+    - workshop.pl
+    - schema.json
+    - registries-schema.json
   workflow_dispatch:
 
 jobs:
@@ -23,6 +20,7 @@ jobs:
       ci_target_branch: "master"
       github_workspace: "$GITHUB_WORKSPACE"
       bypass_controller_build: "yes"
+      userenv_filter: "unique"
     secrets:
       production_registry_auth: ${{ secrets.CRUCIBLE_PRODUCTION_ENGINES_REGISTRY_AUTH }}
       quay_oauth_token: ${{ secrets.CRUCIBLE_QUAYIO_OAUTH_TOKEN }}
