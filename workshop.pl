@@ -178,7 +178,8 @@ sub get_exit_code {
         'registries_json_unknown_loading_error' => 103,
         'userenv_unknown_loading_error' => 104,
         'config_unknown_load_error' => 105,
-        'pull_token_not_found' => 106
+        'pull_token_not_found' => 106,
+        'set_default_user' => 107
         );
 
     if (exists($reasons{$exit_reason})) {
@@ -1908,6 +1909,19 @@ if ($rc != 0) {
     command_logger('error', $command, $rc, $command_output);
     logger('error', "Could not create new container '$tmp_container' from '$userenv_json->{'origin'}{'origin'}{'image'}:$userenv_json->{'userenv'}{'origin'}{'tag'}' ($origin_image_id)!\n");
     exit(get_exit_code('create_container'));
+} else {
+    logger('info', "succeeded\n", 1);
+    command_logger('verbose', $command, $rc, $command_output);
+}
+
+# ensure that root is the default user
+logger('info', "Setting default user to root for the container...\n");
+($command, $command_output, $rc) = run_command("buildah config --user root $tmp_container");
+if ($rc != 0) {
+    logger('info', "failed\n", 1);
+    command_logger('error', $command, $rc, $command_output);
+    logger('error', "Could not set default user to root for the temporary container '$tmp_container'!\n");
+    exit(get_exit_code('set_default_user'));
 } else {
     logger('info', "succeeded\n", 1);
     command_logger('verbose', $command, $rc, $command_output);
