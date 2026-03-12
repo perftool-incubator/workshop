@@ -550,96 +550,107 @@ sub delete_proto {
 
 sub install_manual {
     my $req = shift;
-    logger('info', "installing package via manually provided commands...\n", 2);
+    my $output_offset = shift;
+
+    logger('info', "installing package via manually provided commands...\n", $output_offset);
 
     my $install_cmd_log = "";
     my $command, my $command_output, my $rc;
     foreach my $cmd (@{$req->{'manual_info'}{'commands'}}) {
-        logger('info', "executing '$cmd'...\n", 3);
+        logger('info', "executing '$cmd'...\n", $output_offset+1);
         ($command, $command_output, $rc) = run_command($cmd);
         $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
-        if ($rc != 0){
-            logger('info', "failed [rc=$rc]\n", 4);
+        if ($rc != 0) {
+            logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $install_cmd_log);
             logger('error', "Failed to run command '$cmd'\n");
             #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('command_run_failed'));
         }
     }
-    logger('info', "succeeded\n", 2);
+    logger('info', "succeeded\n", $output_offset+2);
     logger('verbose', $install_cmd_log);
 }
 
 sub install_cpan {
     my $req = shift;
-    logger('info', "installing package via cpan...\n", 2);
+    my $output_offset = shift;
+
+    logger('info', "installing package via cpan...\n", $output_offset);
 
     my $cpan_install_log = "";
     my $command, my $command_output, my $rc;
     foreach my $cpan_package (@{$req->{'cpan_info'}{'packages'}}) {
-        logger('info', "cpan installing '$cpan_package'...\n", 3);
+        logger('info', "cpan installing '$cpan_package'...\n", $output_offset+1);
         ($command, $command_output, $rc) = run_command("cpanm $cpan_package");
         $cpan_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
-            logger('info', "failed [rc=$rc]\n", 4);
+            logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $cpan_install_log);
             logger('error', "Failed to cpan install perl package '$cpan_package'\n");
             #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('cpanm_install_failed'));
         }
     }
-    logger('info', "succeeded\n", 4);
+    logger('info', "succeeded\n", $output_offset+2);
     logger('verbose', $cpan_install_log);
 }
 
 sub install_node {
     my $req = shift;
-    logger('info', "installing package via npm install...\n", 2);
+    my $output_offset = shift;
+
+    logger('info', "installing package via npm install...\n", $output_offset);
 
     my $npm_install_log = "";
     my $command, my $command_output, my $rc;
     foreach my $node_package (@{$req->{'node_info'}{'packages'}}) {
-        logger('info', "npm installing '$node_package'...\n", 3);
+        logger('info', "npm installing '$node_package'...\n", $output_offset+1);
         ($command, $command_output, $rc) = run_command("npm install $node_package");
         $npm_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
-            logger('info', "failed [rc=$rc]\n", 4);
+            logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $npm_install_log);
             logger('error', "Failed to npm install node package '$node_package'\n");
             #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('npm_install_failed'));
         }
     }
-    logger('info', "succeeded\n", 4);
+    logger('info', "succeeded\n", $output_offset+2);
     logger('verbose', $npm_install_log);
 }
 
 sub install_python {
     my $req = shift;
-    logger('info', "installing package via python3 pip...\n", 2);
+    my $output_offset = shift;
+
+    logger('info', "installing package via python3 pip...\n", $output_offset);
+
     my $python3_install_log = "";
     my $command, my $command_output, my $rc;
     foreach my $python3_package (@{$req->{'python3_info'}{'packages'}}) {
-        logger('info', "python3 pip installing '$python3_package'...\n", 3);
+        logger('info', "python3 pip installing '$python3_package'...\n", $output_offset+1);
         ($command, $command_output, $rc) = run_command("/usr/bin/python3 -m pip install $python3_package");
         $python3_install_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         if ($rc != 0){
-            logger('info', "failed [rc=$rc]\n", 4);
+            logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $python3_install_log);
             logger('error', "Failed to python3 pip install python3 package '$python3_package'\n");
             exit(get_exit_code('python3_install_failed'));
-        } else {
-            logger('info', $python3_install_log);
         }
     }
-    logger('info', "succeeded\n", 4);
+    logger('info', "succeeded\n", $output_offset+2);
     logger('verbose', $python3_install_log);
 }
 
 sub install_source {
     my $req = shift;
+    my $output_offset = shift;
+
+    logger('info', "building package '$req->{'name'}' from source for installation...\n", $output_offset);
+
     my $build_cmd_log = "";
-    logger('info', "downloading...\n", 3);
+    logger('info', "downloading...\n", $output_offset+1);
     my $max_download_attempts = 3;
     my $download_attempts = 1;
     my $rc = 1;
@@ -655,56 +666,56 @@ sub install_source {
         }
     }
     if ($rc == 0) {
-        logger('info', "getting directory...\n", 3);
+        logger('info', "getting directory...\n", $output_offset+1);
         ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'get_dir'}");
         $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         $command_output = filter_output($command_output);
         my $get_dir = $command_output;
         chomp($get_dir);
         if ($rc == 0) {
-            logger('info', "unpacking...\n", 3);
+            logger('info', "unpacking...\n", $output_offset+1);
             ($command, $command_output, $rc) = run_command("$req->{'source_info'}{'commands'}{'unpack'}");
             $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
             if ($rc == 0) {
                 if (chdir($get_dir)) {
-                    logger('info', "building...\n", 3);
+                    logger('info', "building...\n", $output_offset+1);
                     foreach my $build_cmd (@{$req->{'source_info'}{'commands'}{'commands'}}) {
-                        logger('info', "executing '$build_cmd'...\n", 4);
+                        logger('info', "executing '$build_cmd'...\n", $output_offset+2);
                         ($command, $command_output, $rc) = run_command("$build_cmd");
                         $build_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                         if ($rc != 0) {
-                            logger('info', "failed\n", 5);
+                            logger('info', "failed\n", $output_offset+1);
                             logger('error', $build_cmd_log);
                             logger('error', "Build failed on command '$build_cmd'!\n");
                             #quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('build_failed'));
                         }
                     }
-                    logger('info', "succeeded\n", 3);
+                    logger('info', "succeeded\n", $output_offset+2);
                     logger('verbose', $build_cmd_log);
                 } else {
-                    logger('info', "failed\n", 3);
+                    logger('info', "failed\n", $output_offset+2);
                     logger('error', $build_cmd_log);
                     logger('error', "Could not chdir to '$get_dir'!\n");
                     #quit_files_coro($files_requirements_present, $files_channel);
                     exit(get_exit_code('chdir_failed'));
                 }
             } else {
-                logger('info', "failed\n", 3);
+                logger('info', "failed\n", $output_offset+2);
                 logger('error', $build_cmd_log);
                 logger('error', "Could not unpack source package!\n");
                 #quit_files_coro($files_requirements_present, $files_channel);
                 exit(get_exit_code('unpack_failed'));
             }
         } else {
-            logger('info', "failed\n", 3);
+            logger('info', "failed\n", $output_offset+2);
             logger('error', $build_cmd_log);
             logger('error', "Could not get unpack directory!\n");
             #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('unpack_dir_not_found'));
         }
     } else {
-        logger('info', "failed\n", 3);
+        logger('info', "failed\n", $output_offset+2);
         logger('error', $build_cmd_log);
         logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
         #quit_files_coro($files_requirements_present, $files_channel);
@@ -715,27 +726,29 @@ sub install_source {
 sub install_files {
     my $req = shift;
     my $container = shift;
+    my $output_offset = shift;
+
     foreach my $file (@{$req->{'files_info'}{'files'}}) {
         $file->{'src'} = param_replacement($file->{'src'}, 2);
         if (exists($file->{'dst'})) {
             $file->{'dst'} = param_replacement($file->{'dst'}, 2);
         }
-        logger('info', "copying '$file->{'src'}'...\n", 2);
+        logger('info', "copying '$file->{'src'}'...\n", $output_offset);
 
         my $command, my $command_output, my $rc;
         if (exists($file->{'dst'})) {
             ($command, $command_output, $rc) = run_command("buildah add $container $file->{'src'} $file->{'dst'}");
             if ($rc != 0) {
-                logger('info', "failed\n", 3);
+                logger('info', "failed\n", $output_offset+1);
                 command_logger('error', $command, $rc, $command_output);
                 logger('error', "Failed to copy '$file->{'src'}' to the temporary container!\n");
                 #$return_channel->put(get_exit_code('local-copy_failed'));
             } else {
-                logger('info', "succeeded\n", 3);
+                logger('info', "succeeded\n", $output_offset+1);
                 command_logger('verbose', $command, $rc, $command_output);
             }
         } else {
-            logger('info', "failed\n", 3);
+            logger('info', "failed\n", $output_offset+1);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "Destination '$file->{'dst'}' not defined!\n");
         }
@@ -745,16 +758,18 @@ sub install_files {
 sub install_distro_manual {
     my $req = shift;
     my $container = shift;
-    logger('info', "performing manual distro package installation...\n", 2);
+    my $output_offset = shift;
+
+    logger('info', "performing manual distro package installation...\n", $output_offset);
 
     if (chdir('/root')) {
         foreach my $pkg (@{$req->{'distro-manual_info'}{'packages'}}) {
             my $install_cmd_log = "";
             my $download_filename = "distro-manual-package";
 
-            logger('info', "package '$pkg'...\n", 3);
+            logger('info', "package '$pkg'...\n", $output_offset+1);
 
-            logger('info', "downloading...\n", 4);
+            logger('info', "downloading...\n", $output_offset+2);
             my $max_download_attempts = 3;
             my $download_attempts = 1;
             my $rc = 1;
@@ -774,7 +789,7 @@ sub install_distro_manual {
                     } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
                         $operation_cmd = "";
                     } else {
-                        logger('info', "failed validation\n", 5);
+                        logger('info', "failed validation\n", $output_offset+3);
                         logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
                         exit(get_exit_code('unsupported_package_manager'));
                     }
@@ -789,9 +804,9 @@ sub install_distro_manual {
                 }
             }
             if ($rc == 0) {
-                logger('info', "succeeded\n", 5);
+                logger('info', "succeeded\n", $output_offset+3);
 
-                logger('info', "installing...\n", 4);
+                logger('info', "installing...\n", $output_offset+2);
 
                 my $operation_cmd = "";
                 if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'rpm') {
@@ -799,7 +814,7 @@ sub install_distro_manual {
                 } elsif ($userenv_json->{'userenv'}{'properties'}{'packages'}{'type'} eq 'pkg') {
                     $operation_cmd = "dpkg --install " . $download_filename;
                 } else {
-                    logger('info', "failed\n", 5);
+                    logger('info', "failed\n", $output_offset+3);
                     logger('error', "Unsupported userenv package type encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'type'}]\n");
                     exit(get_exit_code('unsupported_package_manager'));
                 }
@@ -807,35 +822,35 @@ sub install_distro_manual {
                 ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
                 $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                 if ($rc == 0) {
-                    logger('info', "succeeded\n", 5);
+                    logger('info', "succeeded\n", $output_offset+3);
 
-                    logger('info', "cleaning up...\n", 4);
+                    logger('info', "cleaning up...\n", $output_offset+2);
                     ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- rm -v $download_filename");
                     $install_cmd_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
                     if ($rc == 0) {
-                        logger('info', "succeeded\n", 5);
+                        logger('info', "succeeded\n", $output_offset+3);
                         logger('verbose', $install_cmd_log);
                     } else {
-                        logger('info', "failed [rc=$rc]\n", 5);
+                        logger('info', "failed [rc=$rc]\n", $output_offset+3);
                         logger('error', $install_cmd_log);
                         logger('error', "Failed to cleanup package '$pkg'\n");
                         exit(get_exit_code("install_cleanup"));
                     }
                 } else {
-                    logger('info', "failed [rc=$rc]\n", 5);
+                    logger('info', "failed [rc=$rc]\n", $output_offset+3);
                     logger('error', $install_cmd_log);
                     logger('error', "Failed to install package '$pkg'\n");
                     exit(get_exit_code("package_install"));
                 }
             } else {
-                logger('info', "failed\n", 5);
+                logger('info', "failed\n", $output_offset+3);
                 logger('error', $install_cmd_log);
                 logger('error', "Could not download $pkg!\n");
                 exit(get_exit_code('download_failed'));
             }
         }
     } else {
-        logger('info', "failed\n", 2);
+        logger('info', "failed\n", $output_offset+1);
         logger('error', "Could not chdir to /root!\n");
         exit(get_exit_code('chdir_failed'));
     }
@@ -844,6 +859,7 @@ sub install_distro_manual {
 sub install_distro {
     my $req = shift;
     my $container = shift;
+    my $output_offset = shift;
 
     $distro_installs = 1;
 
@@ -861,11 +877,11 @@ sub install_distro {
         }
     }
 
-    logger('info', "performing distro package $operation...\n", 2);
+    logger('info', "performing distro package $operation...\n", $output_offset);
 
     if (exists($req->{'distro_info'}{'packages'})) {
         foreach my $pkg (@{$req->{'distro_info'}{'packages'}}) {
-            logger('info', "package '$pkg'...\n", 3);
+            logger('info', "package '$pkg'...\n", $output_offset+1);
 
             my $operation_cmd = "$environment";
             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
@@ -893,17 +909,17 @@ sub install_distro {
                     $operation_cmd .= "zypper remove -y " . $pkg;
                 }
             } else {
-                logger('info', "failed\n", 4);
+                logger('info', "failed\n", $output_offset+2);
                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
                 exit(get_exit_code('unsupported_package_manager'));
             }
 
             (my $command, my $command_output, my $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
             if ($rc == 0) {
-                logger('info', "succeeded\n", 4);
+                logger('info', "succeeded\n", $output_offset+2);
                 command_logger('verbose', $command, $rc, $command_output);
             } else {
-                logger('info', "failed [rc=$rc]\n", 4);
+                logger('info', "failed [rc=$rc]\n", $output_offset+2);
                 command_logger('error', $command, $rc, $command_output);
                 logger('error', "Failed to $operation package '$pkg'\n");
                 exit(get_exit_code("package_" . $operation));
@@ -913,7 +929,7 @@ sub install_distro {
 
     if (exists($req->{'distro_info'}{'groups'})) {
         foreach my $grp (@{$req->{'distro_info'}{'groups'}}) {
-            logger('info', "group '$grp'...\n", 3);
+            logger('info', "group '$grp'...\n", $output_offset+1);
 
             my $operation_cmd = "$environment";
             if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq 'dnf') {
@@ -943,17 +959,17 @@ sub install_distro {
                     $operation_cmd .= "zypper remove -y -t pattern " . $grp;
                 }
             } else {
-                logger('info', "failed\n", 4);
+                logger('info', "failed\n", $output_offset+2);
                 logger('error', "Unsupported userenv package manager encountered [$userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'}]\n");
                 exit(get_exit_code('unsupported_package_manager'));
             }
 
             ($command, $command_output, $rc) = run_command("buildah run " . $volume_opt . " --isolation chroot $container -- $operation_cmd");
             if ($rc == 0) {
-                logger('info', "succeeded\n", 4);
+                logger('info', "succeeded\n", $output_offset+2);
                 command_logger('verbose', $command, $rc, $command_output);
             } else {
-                logger('info', "failed [rc=$rc]\n", 4);
+                logger('info', "failed [rc=$rc]\n", $output_offset+2);
                 command_logger('error', $command, $rc, $command_output);
                 logger('error', "Failed to $operation group '$grp'\n");
                 exit(get_exit_code('group_' . $operation));
@@ -964,18 +980,19 @@ sub install_distro {
 
 sub add_chroot {
     my $container = shift;
+    my $output_offset = shift;
     my $mount_point;
 
     # mount the container image
-    logger('info', "Mounting the temporary container's fileystem...\n");
+    logger('info', "Mounting the temporary container's fileystem...\n", $output_offset);
     (my $command, my $command_output, my $rc) = run_command("buildah mount $container");
     if ($rc != 0) {
-        logger('info', "failed\n", 1);
+        logger('info', "failed\n", $output_offset+1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to mount the temporary container's filesystem!\n");
         exit(get_exit_code('container_mount'));
     } else {
-        logger('info', "succeeded\n", 1);
+        logger('info', "succeeded\n", $output_offset+1);
         command_logger('verbose', $command, $rc, $command_output);
         $command_output = filter_output($command_output);
         chomp($command_output);
@@ -983,23 +1000,23 @@ sub add_chroot {
     }
 
     # bind mount virtual file systems that may be needed
-    logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n");
+    logger('info', "Bind mounting /dev, /proc/, and /sys into the temporary container's filesystem...\n", $output_offset);
     foreach my $fs (@virtual_fs) {
-        logger('info', "mounting '/$fs'...\n", 1);
+        logger('info', "mounting '/$fs'...\n", $output_offset+1);
         ($command, $command_output, $rc) = run_command("mount --verbose --options bind /$fs $mount_point/$fs");
         if ($rc != 0) {
-            logger('info', "failed\n", 2);
+            logger('info', "failed\n", $output_offset+2);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "Failed to mount virtual filesystem '/$fs'!\n");
             exit(get_exit_code('virtual_fs_mount'));
         } else {
-            logger('info', "succeeded\n", 2);
+            logger('info', "succeeded\n", $output_offset+2);
             command_logger('verbose', $command, $rc, $command_output);
         }
     }
 
     if (-e $mount_point . "/etc/resolv.conf") {
-        logger('info', "Backing up the temporary container's /etc/resolv.conf...\n");
+        logger('info', "Backing up the temporary container's /etc/resolv.conf...\n", $output_offset);
         my $command_output_log = "";
         ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $mount_point . "/etc/resolv.conf " . $mount_point . "/etc/resolv.conf.workshop");
         $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
@@ -1008,24 +1025,24 @@ sub add_chroot {
             $command_output_log .= sprintf($command_logger_fmt, $command, $rc, $command_output);
         }
         if ($rc != 0) {
-            logger('info', "failed\n", 1);
+            logger('info', "failed\n", $output_offset+1);
             logger('error', $command_output_log);
             logger('error', "Failed to backup the temporary container's /etc/resolv.conf!\n");
             exit(get_exit_code('resolve.conf_backup'));
         }
-        logger('info', "succeeded\n", 1);
+        logger('info', "succeeded\n", $output_offset+1);
         logger('verbose', $command_output_log);
     }
 
-    logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n");
+    logger('info', "Temporarily copying the host's /etc/resolv.conf to the temporary container...\n", $output_offset);
     ($command, $command_output, $rc) = run_command("/bin/cp --verbose /etc/resolv.conf " . $mount_point . "/etc/resolv.conf");
     if ($rc != 0) {
-        logger('info', "failed\n", 1);
+        logger('info', "failed\n", $output_offset+1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to copy /etc/resolv.conf to the temporary container!\n");
         exit(get_exit_code('resolv.conf_update'));
     }
-    logger('info', "succeeded\n", 1);
+    logger('info', "succeeded\n", $output_offset+1);
     command_logger('verbose', $command, $rc, $command_output);
 
     return $mount_point;
@@ -1034,64 +1051,64 @@ sub add_chroot {
 sub remove_chroot {
     my $container = shift;
     my $container_mount_point = shift;
+    my $output_offset = shift;
 
     # unmount virtual file systems that are bind mounted
-    logger('info', "Unmounting /dev, /proc/, and /sys from the temporary container's filesystem...\n");
+    logger('info', "Unmounting /dev, /proc/, and /sys from the temporary container's filesystem...\n", $output_offset);
     my $umount_cmd_log = "";
     foreach my $fs (@virtual_fs) {
-        logger('info', "unmounting '/$fs'...\n", 1);
+        logger('info', "unmounting '/$fs'...\n", $output_offset+1);
         (my $command, my $command_output, my $rc) = run_command("umount --verbose $container_mount_point/$fs");
         if ($rc != 0) {
-            logger('info', "failed\n", 2);
+            logger('info', "failed\n", $output_offset+2);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "Failed to unmount virtual filesystem '/$fs'!\n");
             exit(get_exit_code('virtual_fs_umount'));
         } else {
-            logger('info', "succeeded\n", 2);
+            logger('info', "succeeded\n", $output_offset+2);
             command_logger('verbose', $command, $rc, $command_output);
         }
     }
 
-    logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n");
+    logger('info', "Removing the temporarily assigned /etc/resolv.conf from the temporary container...\n", $output_offset);
     ($command, $command_output, $rc) = run_command("/bin/rm --verbose --force " . $container_mount_point . "/etc/resolv.conf");
     if ($rc != 0) {
-        logger('info', "failed\n", 1);
+        logger('info', "failed\n", $output_offset+1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to remove /etc/resolv.conf from the temporary container!\n");
         exit(get_exit_code('resolve.conf_remove'));
     }
-    logger('info', "succeeded\n", 1);
+    logger('info', "succeeded\n", $output_offset+1);
     command_logger('verbose', $command, $rc, $command_output);
 
     if (-e $container_mount_point . "/etc/resolv.conf.workshop") {
-        logger('info', "Restoring the backup of the temporary container's /etc/resolv.conf...\n");
+        logger('info', "Restoring the backup of the temporary container's /etc/resolv.conf...\n", $output_offset);
         ($command, $command_output, $rc) = run_command("/bin/cp --verbose --force " . $container_mount_point . "/etc/resolv.conf.workshop " . $container_mount_point . "/etc/resolv.conf");
         if ($rc != 0) {
-            logger('info', "failed\n", 1);
+            logger('info', "failed\n", $output_offset+1);
             command_logger('error', $command, $rc, $command_output);
             logger('error', "Failed to restore the temporary container's /etc/resolv.conf!\n");
             exit(get_exit_code('resolve.conf_restore'));
         }
-        logger('info', "succeeded\n", 1);
+        logger('info', "succeeded\n", $output_offset+1);
         command_logger('verbose', $command, $rc, $command_output);
     }
 
     # unmount the container image
-    logger('info', "Unmounting the temporary container's filesystem...\n");
+    logger('info', "Unmounting the temporary container's filesystem...\n", $output_offset);
     ($command, $command_output, $rc) = run_command("buildah unmount $container");
     if ($rc != 0) {
-        logger('info', "failed\n", 1);
+        logger('info', "failed\n", $output_offset+1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Failed to unmount the temporary container's filesystem [$container_mount_point]!\n");
         exit(get_exit_code('container_umount'));
     } else {
-        logger('info', "succeeded\n", 1);
+        logger('info', "succeeded\n", $output_offset+1);
         command_logger('verbose', $command, $rc, $command_output);
     }
 }
 
 sub set_update_clean_cmds {
-
     if ($userenv_json->{'userenv'}{'properties'}{'packages'}{'manager'} eq "dnf") {
         $update_cmd = "dnf update --assumeyes --allowerasing --nobest";
         $clean_cmd = "dnf clean all";
@@ -1939,14 +1956,15 @@ foreach my $req (@{$active_requirements{'array'}}) {
     logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
 
     if ($req->{'type'} eq 'files') {
-        install_files($req, $tmp_container);
+        install_files($req, $tmp_container, 2);
     } elsif ($req->{'type'} eq 'distro-manual') {
-        install_distro_manual($req, $tmp_container);
+        install_distro_manual($req, $tmp_container, 2);
     } elsif ($req->{'type'} eq 'distro') {
-        install_distro($req, $tmp_container);
+        install_distro($req, $tmp_container, 2);
     } else {
-        logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
-        my $container_mount_point = add_chroot($tmp_container);
+        logger('info', "Preparing Environment\n", 2);
+
+        my $container_mount_point = add_chroot($tmp_container, 3);
 
         # The following requirement types require a chroot in order
         # to issue multiple commands and preserve state (like PWD) and to
@@ -1958,14 +1976,14 @@ foreach my $req (@{$active_requirements{'array'}}) {
             ($command, $pwd, $rc) = run_command("pwd");
             chomp($pwd);
         } else {
-            logger('info', "failed\n", 2);
+            logger('info', "failed\n", 3);
             logger('error', "Could not get directory reference to '/'!\n");
             exit(get_exit_code('directory_reference'));
         }
 
         # Jump into the container image
         if (not chroot($container_mount_point)) {
-            logger('info', "failed\n", 2);
+            logger('info', "failed\n", 3);
             logger('error', "Could not chroot to " . $container_mount_point . "!\n");
             exit(get_exit_code('chroot_failed'));
         }
@@ -1975,23 +1993,25 @@ foreach my $req (@{$active_requirements{'array'}}) {
         }
 
         if (not chdir("/opt")) {
-            logger('info', "failed\n", 2);
+            logger('info', "failed\n", 3);
             logger('error', "Could not chdir to /opt!\n");
             exit(get_exit_code('chdir_failed'));
         }
 
         # Install the requirment that needs chroot
         if ($req->{'type'} eq 'source') {
-            install_source($req);
+            install_source($req, 2);
         } elsif ($req->{'type'} eq 'python3') {
-            install_python($req);
+            install_python($req, 2);
         } elsif ($req->{'type'} eq 'node') {
-            install_node($req);
+            install_node($req, 2);
         } elsif ($req->{'type'} eq 'manual') {
-            install_manual($req);
+            install_manual($req, 2);
         } elsif ($req->{'type'} eq 'cpan') {
-            install_cpan($req);
+            install_cpan($req, 2);
         }
+
+        logger('info', "Cleaning up Environment\n", 2);
 
         # Break out of the chroot and return to the old path/pwd
         if (not chdir(*NORMAL_ROOT)) {
@@ -2010,7 +2030,7 @@ foreach my $req (@{$active_requirements{'array'}}) {
         }
 
         closedir(NORMAL_ROOT);
-        remove_chroot($tmp_container, $container_mount_point);
+        remove_chroot($tmp_container, $container_mount_point, 3);
     }
 } # foreach my $req
 
