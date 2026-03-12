@@ -37,7 +37,7 @@ jobs:
 
     - name: Install Perl dependencies
       run: |
-        sudo dnf install -y perl-Coro perl-JSON perl-JSON-XS perl-JSON-Validator perl-Data-UUID perl-Digest-SHA perl-Archive-Extract-xz-IO-Uncompress-UnXz.noarch
+        sudo dnf install -y perl-JSON perl-JSON-XS perl-JSON-Validator perl-Data-UUID perl-Digest-SHA perl-Archive-Extract-xz-IO-Uncompress-UnXz.noarch
 
     - name: Install Toolbox
       run: |

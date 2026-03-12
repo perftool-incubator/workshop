@@ -10,7 +10,6 @@ use JSON;
 use Scalar::Util qw(looks_like_number);
 use File::Basename;
 use Digest::SHA qw(sha256_hex);
-use Coro;
 use JSON::Validator;
 
 use Data::UUID;
@@ -82,14 +81,6 @@ if (-e "/run/secrets" ) {
     $volume_opt = "--volume /run/secrets:/run/secrets"
 }
 
-sub quit_files_coro {
-    my ($present, $channel) = @_;
-
-    if ($present) {
-        $channel->put('quit');
-    }
-}
-
 sub get_exit_code {
     my ($exit_reason) = @_;
 
@@ -143,7 +134,7 @@ sub get_exit_code {
         'new_container_cleanup' => 46,
         'config_annotate_fail' => 47,
         'get_config_version' => 48,
-        'coro_failure' => 49,
+        'ENTRY_AVAILABLE' => 49,
         'failed_opening_config' => 50,
         'config_set_entrypoint' => 51,
         'config_set_author' => 52,
@@ -564,7 +555,6 @@ sub install_manual {
             logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $install_cmd_log);
             logger('error', "Failed to run command '$cmd'\n");
-            #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('command_run_failed'));
         }
     }
@@ -588,7 +578,6 @@ sub install_cpan {
             logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $cpan_install_log);
             logger('error', "Failed to cpan install perl package '$cpan_package'\n");
-            #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('cpanm_install_failed'));
         }
     }
@@ -612,7 +601,6 @@ sub install_node {
             logger('info', "failed [rc=$rc]\n", $output_offset+2);
             logger('error', $npm_install_log);
             logger('error', "Failed to npm install node package '$node_package'\n");
-            #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('npm_install_failed'));
         }
     }
@@ -687,7 +675,6 @@ sub install_source {
                             logger('info', "failed\n", $output_offset+1);
                             logger('error', $build_cmd_log);
                             logger('error', "Build failed on command '$build_cmd'!\n");
-                            #quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('build_failed'));
                         }
                     }
@@ -697,28 +684,24 @@ sub install_source {
                     logger('info', "failed\n", $output_offset+2);
                     logger('error', $build_cmd_log);
                     logger('error', "Could not chdir to '$get_dir'!\n");
-                    #quit_files_coro($files_requirements_present, $files_channel);
                     exit(get_exit_code('chdir_failed'));
                 }
             } else {
                 logger('info', "failed\n", $output_offset+2);
                 logger('error', $build_cmd_log);
                 logger('error', "Could not unpack source package!\n");
-                #quit_files_coro($files_requirements_present, $files_channel);
                 exit(get_exit_code('unpack_failed'));
             }
         } else {
             logger('info', "failed\n", $output_offset+2);
             logger('error', $build_cmd_log);
             logger('error', "Could not get unpack directory!\n");
-            #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('unpack_dir_not_found'));
         }
     } else {
         logger('info', "failed\n", $output_offset+2);
         logger('error', $build_cmd_log);
         logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
-        #quit_files_coro($files_requirements_present, $files_channel);
         exit(get_exit_code('download_failed'));
     }
 }
@@ -2041,7 +2024,6 @@ if ($distro_installs) {
         logger('info', "failed\n", 1);
         command_logger('error', $command, $rc, $command_output);
         logger('error', "Cleaning up after distro package installation failed!\n");
-        #quit_files_coro($files_requirements_present, $files_channel);
         exit(get_exit_code('install_cleanup'));
     } else {
         logger('info', "succeeded\n", 1);
