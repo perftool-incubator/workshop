@@ -676,7 +676,7 @@ sub install_source {
                             logger('info', "failed\n", 5);
                             logger('error', $build_cmd_log);
                             logger('error', "Build failed on command '$build_cmd'!\n");
-                #quit_files_coro($files_requirements_present, $files_channel);
+                            #quit_files_coro($files_requirements_present, $files_channel);
                             exit(get_exit_code('build_failed'));
                         }
                     }
@@ -686,28 +686,28 @@ sub install_source {
                     logger('info', "failed\n", 3);
                     logger('error', $build_cmd_log);
                     logger('error', "Could not chdir to '$get_dir'!\n");
-            #quit_files_coro($files_requirements_present, $files_channel);
+                    #quit_files_coro($files_requirements_present, $files_channel);
                     exit(get_exit_code('chdir_failed'));
                 }
             } else {
                 logger('info', "failed\n", 3);
                 logger('error', $build_cmd_log);
                 logger('error', "Could not unpack source package!\n");
-        #quit_files_coro($files_requirements_present, $files_channel);
-                    exit(get_exit_code('unpack_failed'));
+                #quit_files_coro($files_requirements_present, $files_channel);
+                exit(get_exit_code('unpack_failed'));
             }
         } else {
             logger('info', "failed\n", 3);
             logger('error', $build_cmd_log);
             logger('error', "Could not get unpack directory!\n");
-        #quit_files_coro($files_requirements_present, $files_channel);
+            #quit_files_coro($files_requirements_present, $files_channel);
             exit(get_exit_code('unpack_dir_not_found'));
         }
     } else {
         logger('info', "failed\n", 3);
         logger('error', $build_cmd_log);
         logger('error', "Could not download $req->{'source_info'}{'url'}!\n");
-    #quit_files_coro($files_requirements_present, $files_channel);
+        #quit_files_coro($files_requirements_present, $files_channel);
         exit(get_exit_code('download_failed'));
     }
 }
@@ -1930,89 +1930,89 @@ if ($rc != 0) {
 set_update_clean_cmds();
 update_container_pkgs($tmp_container);
 
-    logger('info', "Installing Requirements\n");
+logger('info', "Installing Requirements\n");
 
-    $distro_installs = 0;
-    $req_counter = 0;
-    foreach my $req (@{$active_requirements{'array'}}) {
-        $req_counter += 1;
-        logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
+$distro_installs = 0;
+$req_counter = 0;
+foreach my $req (@{$active_requirements{'array'}}) {
+    $req_counter += 1;
+    logger('info', "(" . $req_counter . "/" . scalar(@{$active_requirements{'array'}}) . ") Processing '$req->{'name'}'...\n", 1);
 
-        if ($req->{'type'} eq 'files') {
-            install_files($req, $tmp_container);
-        } elsif ($req->{'type'} eq 'distro-manual') {
-            install_distro_manual($req, $tmp_container);
-        } elsif ($req->{'type'} eq 'distro') {
-            install_distro($req, $tmp_container);
+    if ($req->{'type'} eq 'files') {
+        install_files($req, $tmp_container);
+    } elsif ($req->{'type'} eq 'distro-manual') {
+        install_distro_manual($req, $tmp_container);
+    } elsif ($req->{'type'} eq 'distro') {
+        install_distro($req, $tmp_container);
+    } else {
+        logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
+        my $container_mount_point = add_chroot($tmp_container);
+
+        # The following requirement types require a chroot in order
+        # to issue multiple commands and preserve state (like PWD) and to
+        # capture error codes from individual commands.
+
+        # Capture the current path/pwd and a reference to '/'
+        my $pwd;
+        if (opendir(NORMAL_ROOT, "/")) {
+            ($command, $pwd, $rc) = run_command("pwd");
+            chomp($pwd);
         } else {
-            logger('info', "building package '$req->{'name'}' from source for installation...\n", 2);
-            my $container_mount_point = add_chroot($tmp_container);
-
-            # The following requirement types require a chroot in order
-            # to issue multiple commands and preserve state (like PWD) and to
-            # capture error codes from individual commands.
-
-            # Capture the current path/pwd and a reference to '/'
-            my $pwd;
-            if (opendir(NORMAL_ROOT, "/")) {
-                ($command, $pwd, $rc) = run_command("pwd");
-                chomp($pwd);
-            } else {
-                logger('info', "failed\n", 2);
-                logger('error', "Could not get directory reference to '/'!\n");
-                exit(get_exit_code('directory_reference'));
-            }
-
-            # Jump into the container image
-            if (not chroot($container_mount_point)) {
-                logger('info', "failed\n", 2);
-                logger('error', "Could not chroot to " . $container_mount_point . "!\n");
-                exit(get_exit_code('chroot_failed'));
-            }
-
-	    if (not -e "/opt") {
-                mkdir("/opt")
-            }
-
-            if (not chdir("/opt")) {
-                logger('info', "failed\n", 2);
-                logger('error', "Could not chdir to /opt!\n");
-                exit(get_exit_code('chdir_failed'));
-            }
-
-            # Install the requirment that needs chroot
-            if ($req->{'type'} eq 'source') {
-                install_source($req);
-            } elsif ($req->{'type'} eq 'python3') {
-                install_python($req);
-            } elsif ($req->{'type'} eq 'node') {
-                install_node($req);
-            } elsif ($req->{'type'} eq 'manual') {
-                install_manual($req);
-            } elsif ($req->{'type'} eq 'cpan') {
-                install_cpan($req);
-            }
-
-            # Break out of the chroot and return to the old path/pwd
-            if (not chdir(*NORMAL_ROOT)) {
-                logger('error', "Could not chdir to escape the chroot!\n");
-                exit(get_exit_code('chroot_escape_3'));
-            }
-
-            if (not chroot(".")) {
-                logger('error', "Could not chroot out of the chroot!\n");
-                exit(get_exit_code('chroot_escape_2'));
-            }
-
-            if (not chdir($pwd)) {
-                logger('error', "Could not chdir back to the original path/pwd!\n");
-                exit(get_exit_code('chroot_escape_1'));
-            }
-
-            closedir(NORMAL_ROOT);
-            remove_chroot($tmp_container, $container_mount_point);
+            logger('info', "failed\n", 2);
+            logger('error', "Could not get directory reference to '/'!\n");
+            exit(get_exit_code('directory_reference'));
         }
-    } # foreach my $req
+
+        # Jump into the container image
+        if (not chroot($container_mount_point)) {
+            logger('info', "failed\n", 2);
+            logger('error', "Could not chroot to " . $container_mount_point . "!\n");
+            exit(get_exit_code('chroot_failed'));
+        }
+
+        if (not -e "/opt") {
+            mkdir("/opt")
+        }
+
+        if (not chdir("/opt")) {
+            logger('info', "failed\n", 2);
+            logger('error', "Could not chdir to /opt!\n");
+            exit(get_exit_code('chdir_failed'));
+        }
+
+        # Install the requirment that needs chroot
+        if ($req->{'type'} eq 'source') {
+            install_source($req);
+        } elsif ($req->{'type'} eq 'python3') {
+            install_python($req);
+        } elsif ($req->{'type'} eq 'node') {
+            install_node($req);
+        } elsif ($req->{'type'} eq 'manual') {
+            install_manual($req);
+        } elsif ($req->{'type'} eq 'cpan') {
+            install_cpan($req);
+        }
+
+        # Break out of the chroot and return to the old path/pwd
+        if (not chdir(*NORMAL_ROOT)) {
+            logger('error', "Could not chdir to escape the chroot!\n");
+            exit(get_exit_code('chroot_escape_3'));
+        }
+
+        if (not chroot(".")) {
+            logger('error', "Could not chroot out of the chroot!\n");
+            exit(get_exit_code('chroot_escape_2'));
+        }
+
+        if (not chdir($pwd)) {
+            logger('error', "Could not chdir back to the original path/pwd!\n");
+            exit(get_exit_code('chroot_escape_1'));
+        }
+
+        closedir(NORMAL_ROOT);
+        remove_chroot($tmp_container, $container_mount_point);
+    }
+} # foreach my $req
 
 if ($distro_installs) {
     logger('info', "Cleaning up after performing distro package installations...\n");
@@ -2028,9 +2028,6 @@ if ($distro_installs) {
         command_logger('verbose', $command, $rc, $command_output);
     }
 }
-
-
-
 
 # add version information to new container image
 logger('info', "Adding config version information to the temporary container...\n");
