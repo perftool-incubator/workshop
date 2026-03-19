@@ -56,7 +56,7 @@ jobs:
     - name: Install Toolbox
       run: |
         if [ -d ~/toolbox ]; then
-          rm -Rf ~/toolbox
+          sudo rm -Rf ~/toolbox
         fi
         pushd ~/
         git clone https://github.com/perftool-incubator/toolbox.git
@@ -87,7 +87,7 @@ jobs:
 
     - name: Cleanup toolbox
       run: |
-        rm -Rf ~/toolbox
+        sudo rm -Rf ~/toolbox
 
   workshop-py:
     needs: changes
@@ -113,7 +113,7 @@ jobs:
     - name: Install Toolbox
       run: |
         if [ -d ~/toolbox ]; then
-          rm -Rf ~/toolbox
+          sudo rm -Rf ~/toolbox
         fi
         pushd ~/
         git clone https://github.com/perftool-incubator/toolbox.git
@@ -144,7 +144,7 @@ jobs:
 
     - name: Cleanup toolbox
       run: |
-        rm -Rf ~/toolbox
+        sudo rm -Rf ~/toolbox
 
   faux-workshop-ci:
     needs: changes
