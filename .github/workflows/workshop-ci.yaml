@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workshop-ci:
+  workshop-pl:
     runs-on: [ self-hosted, workshop ]
 
     steps:
@@ -74,3 +74,64 @@ jobs:
     - name: Cleanup toolbox
       run: |
         rm -Rf ~/toolbox
+
+  workshop-py:
+    runs-on: [ self-hosted, workshop ]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install git
+      run: |
+        sudo dnf install -y git
+
+    - name: Install container dependencies
+      run: |
+        sudo dnf install -y skopeo podman buildah
+
+    - name: Install Python dependencies
+      run: |
+        sudo dnf install -y python3 python3-pip
+        sudo pip3 install invoke jsonschema
+
+    - name: Install Toolbox
+      run: |
+        if [ -d ~/toolbox ]; then
+          rm -Rf ~/toolbox
+        fi
+        pushd ~/
+        git clone https://github.com/perftool-incubator/toolbox.git
+
+    - name: Run workshop - dump-config
+      run: |
+        export TOOLBOX_HOME=~/toolbox
+        echo
+        sudo --preserve-env=TOOLBOX_HOME python3 ./workshop.py --log-level verbose --label workshop-py-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true
+
+    - name: Run workshop - dump-config - force-build-policy missing
+      run: |
+        export TOOLBOX_HOME=~/toolbox
+        echo
+        sudo --preserve-env=TOOLBOX_HOME python3 ./workshop.py --log-level verbose --label workshop-py-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true --force-build-policy missing
+
+    - name: Run workshop - dump-files
+      run: |
+        export TOOLBOX_HOME=~/toolbox
+        echo
+        sudo --preserve-env=TOOLBOX_HOME python3 ./workshop.py --log-level verbose --label workshop-py-ci-dump-files --userenv ./userenvs/fedora-ci.json --dump-files true
+
+    - name: Run workshop
+      run: |
+        export TOOLBOX_HOME=~/toolbox
+        echo
+        sudo --preserve-env=TOOLBOX_HOME python3 ./workshop.py --log-level verbose --label workshop-py-ci --userenv ./userenvs/fedora-ci.json
+
+    - name: Cleanup toolbox
+      run: |
+        rm -Rf ~/toolbox
+
+  workshop-ci:
+    needs: [ workshop-pl, workshop-py ]
+    runs-on: [ self-hosted, workflow-overhead ]
+    steps:
+    - run: echo "workshop-ci completed successfully"
