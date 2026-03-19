@@ -13,7 +13,7 @@ Workshop is a tool for building container images based on specified userenv and 
 - [skopeo](https://github.com/containers/skopeo) -- remote registry inspection
 - curl
 
-### Perl Modules
+### Perl Modules (for workshop.pl)
 
 - JSON
 - JSON::Validator
@@ -23,6 +23,11 @@ Workshop is a tool for building container images based on specified userenv and 
 - Scalar::Util
 - File::Basename
 
+### Python Packages (for workshop.py)
+
+- invoke
+- jsonschema (provided via toolbox)
+
 ### Toolbox
 
 Workshop requires the [toolbox](https://github.com/perftool-incubator/toolbox) project. Set the `TOOLBOX_HOME` environment variable to point to the toolbox checkout:
@@ -31,12 +36,15 @@ Workshop requires the [toolbox](https://github.com/perftool-incubator/toolbox) p
 export TOOLBOX_HOME=/path/to/toolbox
 ```
 
-Workshop expects `$TOOLBOX_HOME/perl/` to exist and contain the `toolbox::json` and `toolbox::logging` modules.
+Workshop expects `$TOOLBOX_HOME/perl/` to exist and contain the `toolbox::json` and `toolbox::logging` modules (for `workshop.pl`), and `$TOOLBOX_HOME/python/` for the `toolbox.json` module (for `workshop.py`).
 
 ## Usage
 
+There are two functionally equivalent implementations: `workshop.pl` (Perl) and `workshop.py` (Python). Currently `workshop.pl` is the stable, production version. `workshop.py` is a reimplementation that is intended to eventually replace it. Both are tested in CI and accept the same arguments:
+
 ```
 workshop.pl --userenv <file> [--requirements <file> ...] [options]
+workshop.py --userenv <file> [--requirements <file> ...] [options]
 ```
 
 ### Required Arguments
@@ -127,6 +135,7 @@ This is useful for injecting paths or other values that vary between environment
 
 ```
 workshop.pl --userenv my-userenv.json --requirements my-reqs.json --param BASEDIR=/opt/myapp
+workshop.py --userenv my-userenv.json --requirements my-reqs.json --param BASEDIR=/opt/myapp
 ```
 
 Any occurrence of `BASEDIR` in the definition files will be replaced with `/opt/myapp`.
