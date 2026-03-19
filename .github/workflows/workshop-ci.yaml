@@ -4,14 +4,6 @@ on:
   # run on pull request events for the master branch only
   pull_request:
     branches: [ master ]
-    paths-ignore:
-    - LICENSE
-    - '**.md'
-    - '.github/rulesets/**'
-    - .github/workflows/run-crucible-tracking.yaml
-    - .github/workflows/faux-crucible-ci.yaml
-    - .github/workflows/faux-workshop-ci.yaml
-    - 'docs/**'
 
   # allow for manual invocation from the actions tab
   workflow_dispatch:
@@ -21,7 +13,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: [ self-hosted, workflow-overhead ]
+    outputs:
+      only-docs: ${{ steps.filter.outputs.only_modified }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - id: filter
+      uses: tj-actions/changed-files@v47
+      with:
+        files: |
+          LICENSE
+          *.md
+          **/*.md
+          .github/rulesets/**
+          .github/workflows/run-crucible-tracking.yaml
+          .github/workflows/crucible-ci.yaml
+          .github/workflows/workshop-ci.yaml
+          docs/**
+
   workshop-pl:
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true' }}
     runs-on: [ self-hosted, workshop ]
 
     steps:
@@ -76,6 +90,8 @@ jobs:
         rm -Rf ~/toolbox
 
   workshop-py:
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true' }}
     runs-on: [ self-hosted, workshop ]
 
     steps:
@@ -130,8 +146,16 @@ jobs:
       run: |
         rm -Rf ~/toolbox
 
+  faux-workshop-ci:
+    needs: changes
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.only-docs == 'true' }}
+    runs-on: [ self-hosted, workflow-overhead ]
+    steps:
+    - run: echo "faux-workshop-ci complete"
+
   workshop-ci:
-    needs: [ workshop-pl, workshop-py ]
+    needs: [ workshop-pl, workshop-py, faux-workshop-ci ]
+    if: always()
     runs-on: [ self-hosted, workflow-overhead ]
     steps:
     - run: echo "workshop-ci completed successfully"
