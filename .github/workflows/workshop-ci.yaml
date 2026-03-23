@@ -36,7 +36,7 @@ jobs:
   workshop-pl:
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true' }}
-    runs-on: [ self-hosted, workshop ]
+    runs-on: [ self-hosted, aws-cloud-1 ]
 
     steps:
     - uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
   workshop-py:
     needs: changes
     if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true' }}
-    runs-on: [ self-hosted, workshop ]
+    runs-on: [ self-hosted, aws-cloud-1 ]
 
     steps:
     - uses: actions/checkout@v4
