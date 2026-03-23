@@ -149,13 +149,13 @@ jobs:
   faux-workshop-ci:
     needs: changes
     if: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.only-docs == 'true' }}
-    runs-on: [ self-hosted, workflow-overhead ]
+    runs-on: ubuntu-latest
     steps:
     - run: echo "faux-workshop-ci complete"
 
   workshop-ci:
     needs: [ workshop-pl, workshop-py, faux-workshop-ci ]
     if: always()
-    runs-on: [ self-hosted, workflow-overhead ]
+    runs-on: ubuntu-latest
     steps:
     - run: echo "workshop-ci completed successfully"
