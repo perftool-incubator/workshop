@@ -1308,7 +1308,7 @@ if (!defined $args{'tag'}) {
 }
 
 logger('info', "calculating sha256...\n", 1);
-$userenv_json->{'sha256'} = sha256_hex(Dumper($userenv_json));
+$userenv_json->{'sha256'} = sha256_hex(JSON->new->canonical->encode($userenv_json));
 logger('info', "succeeded\n", 2);
 
 logger('debug', "Userenv Hash:\n");
@@ -1544,7 +1544,7 @@ for (my $i=0; $i<scalar(@{$active_requirements{'array'}}); $i++) {
         $files_requirements_present = 1;
     }
 
-    my $digest = sha256_hex(Dumper($active_requirements{'array'}[$i]));
+    my $digest = sha256_hex(JSON->new->canonical->encode($active_requirements{'array'}[$i]));
 
     $active_requirements{'array'}[$i]{'sha256'} = $digest;
     $active_requirements{'array'}[$i]{'index'} = $i;
@@ -1595,7 +1595,7 @@ if (exists($args{'config'})) {
     }
 
     logger('info', "calculating sha256...\n", 1);
-    $config_json->{'sha256'} = sha256_hex(Dumper($config_json));
+    $config_json->{'sha256'} = sha256_hex(JSON->new->canonical->encode($config_json));
     logger('info', "succeeded\n", 2);
 
     logger('debug', "Config Hash:\n");
