@@ -158,4 +158,9 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+    - name: Check Results
+      if: >-
+        contains(needs.*.result, 'failure') ||
+        contains(needs.*.result, 'cancelled')
+      run: exit 1
     - run: echo "workshop-ci completed successfully"
