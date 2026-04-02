@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   changes:
-    runs-on: [ self-hosted, workflow-overhead ]
+    runs-on: ubuntu-latest
     outputs:
       only-docs: ${{ steps.filter.outputs.only_modified }}
     steps:
