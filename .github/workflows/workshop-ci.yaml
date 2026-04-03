@@ -32,6 +32,8 @@ jobs:
           .github/workflows/crucible-ci.yaml
           .github/workflows/workshop-ci.yaml
           docs/**
+    - name: Display changes
+      run: echo '${{ toJSON(steps.filter.outputs) }}' | jq .
 
   workshop-pl:
     needs: changes
