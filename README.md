@@ -160,3 +160,7 @@ Workshop can interact with remote container registries for pulling base images t
 ## Definition Files
 
 The userenv, requirement, and config definitions are JSON files that conform to the [schema](schema.json) that is part of this project.
+
+## Additional Documentation
+
+- [workshop.json Quick Reference](docs/workshop-json.md) -- concise reference for the workshop.json file format
