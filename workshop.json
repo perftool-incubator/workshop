@@ -1,0 +1,53 @@
+{
+    "workshop": {
+        "schema": {
+            "version": "2020.03.02"
+        }
+    },
+    "userenvs": [
+        {
+            "name": "crucible-controller",
+            "requirements": [
+                "workshop-perl-modules",
+                "python3-invoke",
+                "workshop-container-tools"
+            ]
+        }
+    ],
+    "requirements": [
+        {
+            "name": "workshop-perl-modules",
+            "type": "distro",
+            "distro_info": {
+                "packages": [
+                    "perl-JSON",
+                    "perl-JSON-Validator",
+                    "perl-Digest-SHA",
+                    "perl-Data-UUID",
+                    "perl-Data-Dumper",
+                    "perl-Getopt-Long",
+                    "perl-Coro"
+                ]
+            }
+        },
+        {
+            "name": "python3-invoke",
+            "type": "distro",
+            "distro_info": {
+                "packages": [
+                    "python3-invoke"
+                ]
+            }
+        },
+        {
+            "name": "workshop-container-tools",
+            "type": "distro",
+            "distro_info": {
+                "packages": [
+                    "buildah",
+                    "skopeo"
+                ]
+            }
+        }
+    ]
+}
