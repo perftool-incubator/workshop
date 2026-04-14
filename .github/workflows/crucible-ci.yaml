@@ -28,6 +28,7 @@ jobs:
           .github/workflows/run-crucible-tracking.yaml
           .github/workflows/crucible-merged.yaml
           .github/workflows/crucible-ci.yaml
+          .github/workflows/controller-build.yaml
           .github/workflows/workshop-ci.yaml
           docs/**
     - name: Display changes
