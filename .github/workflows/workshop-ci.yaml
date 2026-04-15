@@ -30,6 +30,7 @@ jobs:
           .github/rulesets/**
           .github/workflows/run-crucible-tracking.yaml
           .github/workflows/crucible-ci.yaml
+            .github/workflows/fork-check.yaml
           .github/workflows/controller-build.yaml
           .github/workflows/workshop-ci.yaml
           docs/**
@@ -38,7 +39,7 @@ jobs:
 
   workshop-pl:
     needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true' }}
+    if: ${{ github.event.pull_request.head.repo.fork != true && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true') }}
     runs-on: [ self-hosted, aws-cloud-1 ]
 
     steps:
@@ -94,7 +95,7 @@ jobs:
 
   workshop-py:
     needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true' }}
+    if: ${{ github.event.pull_request.head.repo.fork != true && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true') }}
     runs-on: [ self-hosted, aws-cloud-1 ]
 
     steps:
@@ -151,7 +152,7 @@ jobs:
 
   faux-workshop-ci:
     needs: changes
-    if: ${{ github.event_name != 'workflow_dispatch' && needs.changes.outputs.only-docs == 'true' }}
+    if: ${{ github.event.pull_request.head.repo.fork != true && github.event_name != 'workflow_dispatch' && needs.changes.outputs.only-docs == 'true' }}
     runs-on: ubuntu-latest
     steps:
     - run: echo "faux-workshop-ci complete"
