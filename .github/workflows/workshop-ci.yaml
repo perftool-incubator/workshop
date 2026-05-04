@@ -37,62 +37,6 @@ jobs:
     - name: Display changes
       run: echo '${{ toJSON(steps.filter.outputs) }}' | jq .
 
-  workshop-pl:
-    needs: changes
-    if: ${{ github.event.pull_request.head.repo.fork != true && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true') }}
-    runs-on: [ self-hosted, aws-cloud-1 ]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install git
-      run: |
-        sudo dnf install -y git
-
-    - name: Install container dependencies
-      run: |
-        sudo dnf install -y skopeo podman buildah
-
-    - name: Install Perl dependencies
-      run: |
-        sudo dnf install -y perl-JSON perl-JSON-XS perl-JSON-Validator perl-Data-UUID perl-Digest-SHA perl-Archive-Extract-xz-IO-Uncompress-UnXz.noarch
-
-    - name: Install Toolbox
-      run: |
-        if [ -d ~/toolbox ]; then
-          sudo rm -Rf ~/toolbox
-        fi
-        pushd ~/
-        git clone https://github.com/perftool-incubator/toolbox.git
-
-    - name: Run workshop - dump-config
-      run: |
-        export TOOLBOX_HOME=~/toolbox
-        echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true
-
-    - name: Run workshop - dump-config - force-build-policy missing
-      run: |
-        export TOOLBOX_HOME=~/toolbox
-        echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci-dump-config --userenv ./userenvs/fedora-ci.json --dump-config true --force-build-policy missing
-
-    - name: Run workshop - dump-files
-      run: |
-        export TOOLBOX_HOME=~/toolbox
-        echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci-dump-files --userenv ./userenvs/fedora-ci.json --dump-files true
-
-    - name: Run workshop
-      run: |
-        export TOOLBOX_HOME=~/toolbox
-        echo
-        sudo --preserve-env=TOOLBOX_HOME ./workshop.pl --log-level verbose --label workshop-ci --userenv ./userenvs/fedora-ci.json
-
-    - name: Cleanup toolbox
-      run: |
-        sudo rm -Rf ~/toolbox
-
   workshop-py:
     needs: changes
     if: ${{ github.event.pull_request.head.repo.fork != true && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true') }}
@@ -158,7 +102,7 @@ jobs:
     - run: echo "faux-workshop-ci complete"
 
   workshop-ci:
-    needs: [ workshop-pl, workshop-py, faux-workshop-ci ]
+    needs: [ workshop-py, faux-workshop-ci ]
     if: always()
     runs-on: ubuntu-latest
     steps:
