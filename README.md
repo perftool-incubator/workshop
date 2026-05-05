@@ -13,17 +13,7 @@ Workshop is a tool for building container images based on specified userenv and 
 - [skopeo](https://github.com/containers/skopeo) -- remote registry inspection
 - curl
 
-### Perl Modules (for workshop.pl)
-
-- JSON
-- JSON::Validator
-- Getopt::Long
-- Digest::SHA
-- Data::UUID
-- Scalar::Util
-- File::Basename
-
-### Python Packages (for workshop.py)
+### Python Packages
 
 - invoke
 - jsonschema (provided via toolbox)
@@ -36,14 +26,11 @@ Workshop requires the [toolbox](https://github.com/perftool-incubator/toolbox) p
 export TOOLBOX_HOME=/path/to/toolbox
 ```
 
-Workshop expects `$TOOLBOX_HOME/perl/` to exist and contain the `toolbox::json` and `toolbox::logging` modules (for `workshop.pl`), and `$TOOLBOX_HOME/python/` for the `toolbox.json` module (for `workshop.py`).
+Workshop expects `$TOOLBOX_HOME/python/` to exist and contain the `toolbox.json` module.
 
 ## Usage
 
-There are two functionally equivalent implementations: `workshop.pl` (Perl) and `workshop.py` (Python). Currently `workshop.pl` is the stable, production version. `workshop.py` is a reimplementation that is intended to eventually replace it. Both are tested in CI and accept the same arguments:
-
 ```
-workshop.pl --userenv <file> [--requirements <file> ...] [options]
 workshop.py --userenv <file> [--requirements <file> ...] [options]
 ```
 
@@ -134,7 +121,6 @@ The `--param key=value` flag performs string substitution across userenv, requir
 This is useful for injecting paths or other values that vary between environments. For example:
 
 ```
-workshop.pl --userenv my-userenv.json --requirements my-reqs.json --param BASEDIR=/opt/myapp
 workshop.py --userenv my-userenv.json --requirements my-reqs.json --param BASEDIR=/opt/myapp
 ```
 
