@@ -1887,7 +1887,7 @@ if ($remove_image) {
 
 # create a new container based on the userenv source
 logger('info', "Creating temporary container...\n");
-($command, $command_output, $rc) = run_command("buildah from --name $tmp_container $origin_image_id");
+($command, $command_output, $rc) = run_command("buildah from --security-opt label=disable --name $tmp_container $origin_image_id");
 if ($rc != 0) {
     logger('info', "failed\n", 1);
     command_logger('error', $command, $rc, $command_output);
