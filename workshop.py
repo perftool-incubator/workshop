@@ -1148,7 +1148,7 @@ def cleanup_stale_containers(container_name):
 def create_container(container_name, origin_image_id):
     """Create a container from the origin image."""
     log(logging.INFO, "Creating temporary container...")
-    command, command_output, rc = run_command("buildah from --name %s %s" % (container_name, origin_image_id))
+    command, command_output, rc = run_command("buildah from --security-opt label=disable --name %s %s" % (container_name, origin_image_id))
     if rc != 0:
         log(logging.INFO, "failed", 1)
         command_log(logging.ERROR, command, rc, command_output)
