@@ -1,9 +1,12 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://raw.githubusercontent.com/perftool-incubator/workshop/master/schema.json",
+    "title": "Workshop Schema",
+    "description": "Schema for workshop.json files that define container image build requirements.  Supports three document formats: single-userenv (one userenv + requirements), multi-userenv (multiple userenvs + requirements), and config-only (container configuration without requirements).",
 
     "oneOf": [
 	{
+	    "description": "Single-userenv format: defines one userenv and its build requirements.  Used for userenv definition files.",
 	    "type": "object",
 	    "properties": {
 		"workshop": {
@@ -24,6 +27,7 @@
 	    "additionalProperties": false
 	},
 	{
+	    "description": "Multi-userenv format: defines requirements that target one or more named userenvs.  Used by subproject workshop.json files to specify what software to install in engine or controller images.",
 	    "type": "object",
 	    "properties": {
 		"workshop": {
@@ -44,6 +48,7 @@
 	    "additionalProperties": false
 	},
 	{
+	    "description": "Config-only format: defines container configuration (entrypoint, environment, ports, labels) without build requirements.  Used for container metadata files.",
 	    "type": "object",
 	    "properties": {
 		"workshop": {
@@ -62,12 +67,15 @@
     ],
     "definitions": {
 	"workshop": {
+	    "description": "Metadata block containing the schema version for this workshop.json file format.",
 	    "type": "object",
 	    "properties": {
 		"schema": {
+		    "description": "Schema version information.",
 		    "type": "object",
 		    "properties": {
 			"version": {
+			    "description": "The schema version this file conforms to.",
 			    "type": "string",
 			    "enum": [
 				"2020.03.02",
@@ -92,28 +100,35 @@
 	    "additionalProperties": false
 	},
 	"userenv": {
+	    "description": "A user environment definition that specifies the base container image and its properties.  Each userenv provides a foundation for building engine or controller images.",
 	    "type": "object",
 	    "properties": {
 		"name": {
+		    "description": "The userenv name, used to identify this user environment throughout crucible (e.g., 'rhubi9', 'fedora-latest', 'alma8').",
 		    "type": "string",
 		    "minLength": 1
 		},
 		"label": {
+		    "description": "A human-readable label for this userenv, used in image tags and display.",
 		    "type": "string",
 		    "minLength": 1
 		},
 		"origin": {
+		    "description": "Specifies the source container image that serves as the base for this userenv.",
 		    "type": "object",
 		    "properties": {
 			"image": {
+			    "description": "The container image URL (e.g., 'registry.access.redhat.com/ubi9/ubi').",
 			    "type": "string",
 			    "minLength": 1
 			},
 			"tag": {
+			    "description": "The image tag to pull (e.g., 'latest', '9.2').",
 			    "type": "string",
 			    "minLength": 1
 			},
 			"requires-pull-token": {
+			    "description": "Whether pulling this base image requires authentication.",
 			    "type": "string",
 			    "enum": [
 				"false",
@@ -121,6 +136,7 @@
 			    ]
 			},
 			"build-policy": {
+			    "description": "Controls when the base image is pulled.  'missing' only pulls if the image is not already present locally.  'ifnewer' pulls if a newer version is available.",
 			    "type": "string",
 			    "enum": [
 				"missing",
@@ -128,6 +144,7 @@
 			    ]
 			},
 			"update-policy": {
+			    "description": "Controls whether the base image is updated.  'always' checks for updates on every build.  'never' uses the cached version.",
 			    "type": "string",
 			    "enum": [
 				"always",
@@ -142,16 +159,20 @@
 		    "additionalProperties": false
 		},
 		"properties": {
+		    "description": "Properties describing this userenv's platform support and package management.",
 		    "type": "object",
 		    "properties": {
 			"platform": {
+			    "description": "An array of supported CPU architectures for this userenv.",
 			    "type": "array",
 			    "minItems": 1,
 			    "uniqueItems": true,
 			    "items": {
+				"description": "A supported platform architecture.",
 				"type": "object",
 				"properties": {
 				    "architecture": {
+					"description": "The CPU architecture name (e.g., 'x86_64', 'aarch64').",
 					"type": "string",
 					"enum": [
 					    "x86_64",
@@ -166,13 +187,16 @@
 			    }
 			},
 			"packages": {
+			    "description": "Package management information for this userenv's base distribution.",
 			    "type": "object",
 			    "properties": {
 				"type": {
+				    "description": "The package type (e.g., 'rpm', 'deb').",
 				    "type": "string",
 				    "minLength": 1
 				},
 				"manager": {
+				    "description": "The package manager command (e.g., 'dnf', 'yum', 'apt-get').",
 				    "type": "string",
 				    "minLength": 1
 				}
@@ -199,23 +223,29 @@
 	    "additionalProperties": false
 	},
 	"userenvs": {
+	    "description": "An array of userenv targets for multi-userenv workshop.json files.  Each entry maps one or more userenv names to a set of requirement indices.",
 	    "type": "array",
 	    "minItems": 1,
 	    "uniqueItems": true,
 	    "items": {
+		"description": "A userenv target mapping, specifying which userenvs should receive which requirements.",
 		"type": "object",
 		"properties": {
 		    "name": {
+			"description": "The userenv name(s) this entry applies to.  Can be a single name or an array of names.",
 			"oneOf": [
 			    {
+				"description": "A single userenv name.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    {
+				"description": "An array of userenv names that all receive the same requirements.",
 				"type": "array",
 				"minItems": 1,
 				"uniqueItems": true,
 				"items": {
+				    "description": "A userenv name.",
 				    "type": "string",
 				    "minLength": 1
 				}
@@ -223,8 +253,10 @@
 			]
 		    },
 		    "requirements": {
+			"description": "An array of requirement name references from the top-level requirements array.  These requirements will be installed in the specified userenv(s).",
 			"type": "array",
 			"items": {
+			    "description": "A requirement name that matches a 'name' field in the requirements array.",
 			    "type": "string",
 			    "minLength": 1
 			}
@@ -238,27 +270,33 @@
 	    }
 	},
 	"requirements": {
+	    "description": "An array of software installation requirements.  Each requirement specifies a named set of software to install using one of several installation methods (distro packages, pip, npm, CPAN, source builds, manual commands, or file copies).",
 	    "type": "array",
 	    "uniqueItems": true,
 	    "items": {
 		"oneOf": [
 		    {
+			"description": "A distro-manual requirement installs distribution packages using explicit package manager commands rather than the standard install workflow.",
 			"type": "object",
 			"properties": {
 			    "name": {
+				"description": "A unique name identifying this requirement.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    "type": {
+				"description": "The requirement type.",
 				"type": "string",
 				"enum": [
 				    "distro-manual"
 				]
 			    },
 			    "distro-manual_info": {
+				"description": "Package installation details for the distro-manual method.",
 				"type": "object",
 				"properties": {
 				    "packages": {
+					"description": "An array of package names to install using the distribution's package manager.",
 					"type": "array",
 					"minItems": 1,
 					"uniqueuItems": true,
@@ -282,23 +320,28 @@
 			"additionalProperties": false
 		    },
 		    {
+			"description": "A distro requirement installs or removes distribution packages using the standard package manager workflow.",
 			"type": "object",
 			"properties": {
 			    "name": {
+				"description": "A unique name identifying this requirement.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    "type": {
+				"description": "The requirement type.",
 				"type": "string",
 				"enum": [
 				    "distro"
 				]
 			    },
 			    "distro_info": {
+				"description": "Package installation details for the distro method.",
 				"type": "object",
 				"minProperties": 1,
 				"properties": {
 				    "operation": {
+					"description": "Whether to install or remove the specified packages.  Defaults to 'install'.",
 					"type": "string",
 					"default": "install",
 					"enum": [
@@ -307,6 +350,7 @@
 					]
 				    },
 				    "packages": {
+					"description": "An array of package names to install or remove.",
 					"type": "array",
 					"minItems": 1,
 					"uniqueuItems": true,
@@ -316,6 +360,7 @@
 					}
 				    },
 				    "groups": {
+					"description": "An array of package group names to install or remove.",
 					"type": "array",
 					"minItems": 1,
 					"uniqueuItems": true,
@@ -325,6 +370,7 @@
 					}
 				    },
 				    "environment": {
+					"description": "Environment variables to set during the package installation process.",
 					"type": "object",
 					"properties": { },
 					"minProperties": 1,
@@ -342,22 +388,27 @@
 			"additionalProperties": false
 		    },
 		    {
+			"description": "A manual requirement executes arbitrary shell commands during the image build.",
 			"type": "object",
 			"properties": {
 			    "name": {
+				"description": "A unique name identifying this requirement.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    "type": {
+				"description": "The requirement type.",
 				"type": "string",
 				"enum": [
 				    "manual"
 				]
 			    },
 			    "manual_info": {
+				"description": "Command execution details for the manual method.",
 				"type": "object",
 				"properties": {
 				    "commands": {
+					"description": "An array of shell commands to execute sequentially during the image build.",
 					"type": "array",
 					"minItems": 1,
 					"uniqueItems": true,
@@ -381,22 +432,27 @@
 			"additionalProperties": false
 		    },
                     {
+                        "description": "A python3 requirement installs Python packages using pip.",
                         "type": "object",
                         "properties": {
                             "name": {
+                                "description": "A unique name identifying this requirement.",
                                 "type": "string",
                                 "minLength": 1
                             },
                             "type": {
+                                "description": "The requirement type.",
                                 "type": "string",
                                 "enum": [
                                     "python3"
                                 ]
                             },
                             "python3_info": {
+                                "description": "Package installation details for the python3/pip method.",
                                 "type": "object",
                                 "properties": {
                                     "packages": {
+                                        "description": "An array of Python package names to install via pip.",
                                         "type": "array",
                                         "minItems": 1,
                                         "uniqueItems": true,
@@ -420,22 +476,27 @@
                         "additionalProperties": false
                     },
                     {
+                        "description": "A node requirement installs Node.js packages using npm.",
                         "type": "object",
                         "properties": {
                             "name": {
+                                "description": "A unique name identifying this requirement.",
                                 "type": "string",
                                 "minLength": 1
                             },
                             "type": {
+                                "description": "The requirement type.",
                                 "type": "string",
                                 "enum": [
                                     "node"
                                 ]
                             },
                             "node_info": {
+                                "description": "Package installation details for the node/npm method.",
                                 "type": "object",
                                 "properties": {
                                     "packages": {
+                                        "description": "An array of Node.js package names to install via npm.",
                                         "type": "array",
                                         "minItems": 1,
                                         "uniqueItems": true,
@@ -459,22 +520,27 @@
                         "additionalProperties": false
                     },
 		    {
+			"description": "A cpan requirement installs Perl modules from CPAN.",
 			"type": "object",
 			"properties": {
 			    "name": {
+				"description": "A unique name identifying this requirement.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    "type": {
+				"description": "The requirement type.",
 				"type": "string",
 				"enum": [
 				    "cpan"
 				]
 			    },
 			    "cpan_info": {
+				"description": "Package installation details for the CPAN method.",
 				"type": "object",
 				"properties": {
 				    "packages": {
+					"description": "An array of Perl module names to install from CPAN.",
 					"type": "array",
 					"minItems": 1,
 					"uniqueItems": true,
@@ -498,41 +564,51 @@
 			"additionalProperties": false
 		    },
 		    {
+			"description": "A source requirement downloads, unpacks, and builds software from source.",
 			"type": "object",
 			"properties": {
 			    "name": {
+				"description": "A unique name identifying this requirement.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    "type": {
+				"description": "The requirement type.",
 				"type": "string",
 				"enum": [
 				    "source"
 				]
 			    },
 			    "source_info": {
+				"description": "Source build details including download URL, archive handling, and build commands.",
 				"type": "object",
 				"properties": {
 				    "url": {
+					"description": "The URL to download the source archive from.",
 					"type": "string",
 					"minLength": 1
 				    },
 				    "filename": {
+					"description": "The local filename to save the downloaded archive as.",
 					"type": "string",
 					"minLength": 1
 				    },
 				    "commands": {
+					"description": "Commands for unpacking, locating, and building the source.",
 					"type": "object",
 					"properties": {
 					    "unpack": {
+						"description": "The command to unpack the downloaded archive.",
 						"type": "string",
 						"minLength": 1
 					    },
 					    "get_dir": {
+						"description": "A command that outputs the directory name created by unpacking.",
 						"type": "string",
 						"minLength": 1
 					    },
 					    "commands": {
+						"description": "An array of build commands to execute inside the unpacked source directory.",
 						"type": "array",
 						"minItems": 1,
 						"uniqueItems": true,
@@ -566,31 +642,39 @@
 			"additionalProperties": false
 		    },
 		    {
+			"description": "A files requirement copies files into the container image during the build.",
 			"type": "object",
 			"properties": {
 			    "name": {
+				"description": "A unique name identifying this requirement.",
 				"type": "string",
 				"minLength": 1
 			    },
 			    "type": {
+				"description": "The requirement type.",
 				"type": "string",
 				"enum": [
 				    "files"
 				]
 			    },
 			    "files_info": {
+				"description": "File copy details for the files method.",
 				"type": "object",
 				"properties": {
 				    "files": {
+					"description": "An array of file copy operations, each specifying a source and destination path.",
 					"type": "array",
 					"items": {
+					    "description": "A file copy operation.",
 					    "type": "object",
 					    "properties": {
 						"src": {
+						    "description": "The source file path on the build host.",
 						    "type": "string",
 						    "minLength": 1
 						},
 						"dst": {
+						    "description": "The destination file path inside the container image.",
 						    "type": "string",
 						    "minLength": 1
 						}
@@ -620,13 +704,16 @@
 	    }
 	},
 	"config": {
+	    "description": "Container configuration options applied to the final image.  Used to set the entrypoint, environment variables, exposed ports, labels, and other container metadata.",
 	    "type": "object",
 	    "properties": {
 		"cmd": {
+		    "description": "The default command to execute when the container starts.",
 		    "type": "string",
 		    "minLength": 1
 		},
 		"entrypoint": {
+		    "description": "The container entrypoint as an array of command and arguments.",
 		    "type": "array",
 		    "minItems": 1,
 		    "items": {
@@ -635,43 +722,52 @@
 		    }
 		},
 		"annotations": {
+		    "description": "OCI image annotations as key=value strings.",
 		    "type": "array",
 		    "uniqueItems": true,
 		    "minItems": 1,
 		    "items": {
+			"description": "An annotation in key=value format.",
 			"type": "string",
 			"minLength": 3,
 			"pattern": ".+=.+"
 		    }
 		},
 		"author": {
+		    "description": "The image author metadata.",
 		    "type": "string",
 		    "minLength": 1
 		},
 		"envs": {
+		    "description": "Environment variables to set in the container as key=value strings.",
 		    "type": "array",
 		    "uniqueItems": true,
 		    "minItems": 1,
 		    "items": {
+			"description": "An environment variable in key=value format.",
 			"type": "string",
 			"minLength": 3,
 			"pattern": ".+=.+"
 		    }
 		},
 		"ports": {
+		    "description": "TCP/UDP ports to expose from the container.",
 		    "type": "array",
 		    "uniqueItems": true,
 		    "minItems": 1,
 		    "items": {
+			"description": "A port number to expose.",
 			"type": "integer",
 			"minimum": 1,
 			"maximum": 65536
 		    }
 		},
 		"labels": {
+		    "description": "Labels to apply to the container image.",
 		    "type": "array",
 		    "minItems": 1,
 		    "items": {
+			"description": "A label string.",
 			"type": "string",
 			"minLength": 1
 		    }
