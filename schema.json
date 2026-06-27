@@ -759,7 +759,7 @@
 			"description": "A port number to expose.",
 			"type": "integer",
 			"minimum": 1,
-			"maximum": 65536
+			"maximum": 65535
 		    }
 		},
 		"labels": {
