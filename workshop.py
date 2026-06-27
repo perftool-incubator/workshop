@@ -818,7 +818,7 @@ def _get_group_cmd(manager, operation, grp):
     cmds = {
         'dnf': {'install': 'dnf groupinstall --allowerasing --assumeyes %s', 'remove': 'dnf groupremove --assumeyes %s'},
         'yum': {'install': 'yum groupinstall --assumeyes %s', 'remove': 'yum groupremove --assumeyes %s'},
-        'apt': {'install': 'apt-get install -y --assumeyes %s', 'remove': 'apt-get remove -y --assumeyes %s'},
+        'apt': {'install': 'apt-get install -y %s', 'remove': 'apt-get remove -y %s'},
         'zypper': {'install': 'zypper install -y -t pattern %s', 'remove': 'zypper remove -y -t pattern %s'},
     }
     if manager not in cmds:
