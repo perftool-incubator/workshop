@@ -652,12 +652,14 @@ def install_files(req, container, params, offset):
                 log(logging.INFO, "failed", offset + 1)
                 command_log(logging.ERROR, command, rc, command_output)
                 log(logging.ERROR, "Failed to copy '%s' to the temporary container" % src)
+                sys.exit(get_exit_code('build_failed'))
             else:
                 log(logging.INFO, "succeeded", offset + 1)
                 command_log(VERBOSE, command, rc, command_output)
         else:
             log(logging.INFO, "failed", offset + 1)
-            log(logging.ERROR, "Destination not defined for '%s'" % src)
+            log(logging.ERROR, "Destination not defined for '%s' (should be enforced by schema)" % src)
+            sys.exit(get_exit_code('build_failed'))
 
 
 def install_distro_manual(req, container, userenv_json, offset):
@@ -818,7 +820,7 @@ def _get_group_cmd(manager, operation, grp):
     cmds = {
         'dnf': {'install': 'dnf groupinstall --allowerasing --assumeyes %s', 'remove': 'dnf groupremove --assumeyes %s'},
         'yum': {'install': 'yum groupinstall --assumeyes %s', 'remove': 'yum groupremove --assumeyes %s'},
-        'apt': {'install': 'apt-get install -y --assumeyes %s', 'remove': 'apt-get remove -y --assumeyes %s'},
+        'apt': {'install': 'apt-get install -y %s', 'remove': 'apt-get remove -y %s'},
         'zypper': {'install': 'zypper install -y -t pattern %s', 'remove': 'zypper remove -y -t pattern %s'},
     }
     if manager not in cmds:
