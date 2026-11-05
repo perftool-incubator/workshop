@@ -18,7 +18,7 @@ jobs:
     outputs:
       only-docs: ${{ steps.filter.outputs.only_modified }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - id: filter
       uses: tj-actions/changed-files@v47
@@ -43,7 +43,7 @@ jobs:
     runs-on: [ self-hosted, aws-cloud-1 ]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install git
       run: |
